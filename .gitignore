@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+# Node / pnpm
+node_modules/
+.pnpm-store/
+dist/
+.next/
+coverage/
+# Env / segredos
+.env
+.env.*
+!.env.example
+# SonarQube
+.scannerwork/
+# Dados reais da AGI: nunca no repositório (público)
+dados_brutos/
+reservas_*.json
+PAGAR_*.json
+RECEBER_*.json

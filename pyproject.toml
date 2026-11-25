@@ -1,0 +1,83 @@
+[project]
+name = "stur-api"
+version = "0.1.0"
+description = "API de consulta de reserva da A3 Turismo (leitura da AGI do Stur)"
+authors = [
+    { name = "Pedro Teixeira", email = "5846288+pedroct@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.165.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.14.4",
+    "pydantic-settings>=2.16.3",
+    "simplejson>=4.3.0",
+    "tzdata>=2026.6",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "bandit==1.9.4",
+    "commitizen==4.16.2",
+    "mypy==2.1.0",
+    "pip-audit==2.10.0",
+    "pre-commit==4.6.0",
+    "pytest==9.0.3",
+    "pytest-asyncio>=1.5.0",
+    "pytest-cov>=7.1.0",
+    "python-semantic-release>=10.5,<10.6",
+    "respx>=0.23.1",
+    "ruff==0.15.14",
+    "types-simplejson>=4.3.0.20261112",
+]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "DTZ"]   # DTZ: proíbe datetime sem fuso (§5.5)
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+"src/stur_api/agi/modelos.py" = ["N815", "N803", "N806", "E501"]  # nomes camelCase da AGI (gerado)
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+asyncio_mode = "auto"
+pythonpath = ["scripts"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+
+# Conventional Commits: só escrever/validar mensagem (NÃO usar cz bump).
+[tool.commitizen]
+name = "cz_conventional_commits"
+
+# Release + changelog automáticos — roda no CI (ver §9).
+[tool.semantic_release]
+branch = "main"
+version_toml = ["pyproject.toml:project.version"]   # PSR escreve a versão aqui
+allow_zero_version = true                            # mantém 0.y.z até a 1ª estável
+commit_parser = "conventional"
+build_command = "uv build"                           # opcional: artefato no release
+
+[tool.semantic_release.changelog]
+mode = "update"                                      # mantém CHANGELOG.md acumulado
