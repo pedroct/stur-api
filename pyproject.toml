@@ -69,6 +69,9 @@ filterwarnings = [
     "ignore:Using `httpx` with `starlette.testclient` is deprecated",
 ]
 
+[tool.coverage.run]
+relative_files = true   # o SonarQube casa os arquivos do coverage.xml por caminho relativo
+
 [tool.bandit]
 exclude_dirs = ["tests"]
 

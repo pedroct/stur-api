@@ -73,6 +73,20 @@ uvx --from semgrep==1.165.0 semgrep --error --skip-unknown-extensions \
 
 O semgrep roda isolado (`uvx`) porque conflita com o fastapi no ambiente do projeto.
 
+### SonarQube
+
+A análise vai para o projeto `stur-consulta` no servidor SonarQube da equipe. A configuração
+(host, chave, fontes, cobertura) está em `sonar-project.properties`. O token fica fora do
+repositório: defina `SONAR_TOKEN` no ambiente ou em um `.env` ignorado pelo git.
+
+```bash
+scripts/sonar.sh                    # pytest com cobertura (coverage.xml) + uv run pysonar
+scripts/sonar.sh --somente-scan     # reaproveita o coverage.xml existente
+scripts/sonar.sh --tentativas 5     # tentativas do scan (1 a 5, padrão 3)
+```
+
+O scan espera o Quality Gate e falha se ele reprovar.
+
 ### Modelo da AGI
 
 `src/stur_api/agi/modelos.py` é gerado do dicionário de campos da AGI, que vem de dados
