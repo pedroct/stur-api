@@ -1,6 +1,6 @@
 # stur-api
 
-API de consulta de reserva da A3 Turismo. Lê a AGI do Stur (somente leitura) e devolve a
+API de consulta de reservas do Stur. Lê a AGI do Stur (somente leitura) e devolve a
 venda já calculada e verificada: totais por serviço, conferência dos totais, situação dos
 recebimentos e pagamentos, itinerário, vínculos do fee e dado cru como a AGI entregou.
 
@@ -15,7 +15,7 @@ Prefixo `/api/v1`. O contrato completo (inclusive os envelopes de erro) está em
 
 | Rota | O que devolve |
 |---|---|
-| `GET /vendas` | Lista paginada de vendas por número de reserva, período ou os dois, com filtros e resumo do resultado. |
+| `GET /vendas` | Vendas por número de reserva, período ou os dois, com filtros e resumo do resultado. Devolve o resultado inteiro; a paginação é feita no navegador. |
 | `GET /reservas/{numero}` | A reserva (número) com todas as suas vendas. Número sem vendas: 200 com a lista vazia. |
 | `GET /reservas/{numero}/vendas/{idreserva}` | Uma venda com cálculos, verificação, itinerário e vínculos. |
 | `GET /reservas/{numero}/vendas/{idreserva}/dado-cru` | A venda como a AGI devolveu, com os números exatos. |

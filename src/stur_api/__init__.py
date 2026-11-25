@@ -1,1 +1,1 @@
-"""API de consulta de reserva da A3 Turismo."""
+"""API de consulta de reservas do Stur."""

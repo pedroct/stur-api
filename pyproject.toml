@@ -1,7 +1,7 @@
 [project]
 name = "stur-api"
 version = "0.1.0"
-description = "API de consulta de reserva da A3 Turismo (leitura da AGI do Stur)"
+description = "API de consulta de reservas do Stur (leitura da AGI)"
 authors = [
     { name = "Pedro Teixeira", email = "5846288+pedroct@users.noreply.github.com" }
 ]
