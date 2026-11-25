@@ -83,6 +83,9 @@ def test_ordem_dos_termos_do_cliente_e_do_fornecedor() -> None:
                 "vlrTxEmb",
                 "vlrTxDU",
                 "vlrDesconto",
+                "vlrTxDURepassada",
+                "vlrOverRep",
+                "vlrComisRepassada",
                 "vlrTarifaTotalp",
                 "vlrTaxasP",
                 "vlrTxExtP",
@@ -103,6 +106,9 @@ def test_ordem_dos_termos_do_cliente_e_do_fornecedor() -> None:
         "vlrTxEmb",
         "vlrTxDU",
         "vlrDesconto",
+        "vlrTxDURepassada",
+        "vlrOverRep",
+        "vlrComisRepassada",
     ]
     assert [t.campo for t in conta.fornecedor.termos] == [
         "vlrTarifaTotalp",
@@ -115,7 +121,26 @@ def test_ordem_dos_termos_do_cliente_e_do_fornecedor() -> None:
         "vlrComisRecebida",
     ]
     assert conta.cliente.zerados == [] and conta.fornecedor.zerados == []
-    assert conta.cliente.total == D("5") and conta.fornecedor.total == D("2")
+    assert conta.cliente.total == D("2") and conta.fornecedor.total == D("2")
+
+
+@pytest.mark.parametrize("campo", ["vlrTxDURepassada", "vlrOverRep", "vlrComisRepassada"])
+def test_termos_repassados_reduzem_a_conta_do_cliente(campo: str) -> None:
+    s = fabrica.servico(vlrTarifaTotal=D("1000.00"), vlrTxDU=D("50.00"), **{campo: D("50.00")})
+    conta = conta_do_servico(validar_servico(s), 1, "FECHADA")
+    assert conta.cliente.total == D("1000.00")
+    termo = next(t for t in conta.cliente.termos if t.campo == campo)
+    assert termo.valor == D("50.00") and termo.efeito == "reduz"
+    assert campo not in conta.cliente.zerados
+    assert conta.fornecedor.total == D("0")
+
+
+def test_termos_repassados_zerados_ou_ausentes_vao_para_zerados() -> None:
+    s = fabrica.servico(vlrTarifaTotal=D("10.00"), vlrTxDURepassada=D("0"), vlrOverRep=None)
+    conta = conta_do_servico(validar_servico(s), 1, "FECHADA")
+    assert conta.cliente.zerados[-3:] == ["vlrTxDURepassada", "vlrOverRep", "vlrComisRepassada"]
+    assert [t.campo for t in conta.cliente.termos] == ["vlrTarifaTotal"]
+    assert conta.cliente.total == D("10.00")
 
 
 def test_tarifa_zerada_continua_nos_termos_e_campo_none_conta_como_zero() -> None:
@@ -329,3 +354,35 @@ def test_servico_convertido_dos_dois_lados_conta_uma_vez(config: Configuracao) -
         detalheItem=[ambos, fabrica.servico()],
     )
     assert verificar_totais(validar_venda(venda), _contas(venda), config).tolerancia == D("0.05")
+
+
+def test_venda_com_termo_repassado_fecha_com_o_total_da_api(config: Configuracao) -> None:
+    venda = fabrica.venda(
+        totalCliente=D("1000.00"),
+        totalFornecedor=D("900.00"),
+        margemLucroBruta=D("100.00"),
+        detalheItem=[
+            fabrica.servico(
+                vlrTarifaTotal=D("1000.00"),
+                vlrTxDU=D("50.00"),
+                vlrTxDURepassada=D("50.00"),
+                vlrTarifaTotalp=D("900.00"),
+            )
+        ],
+    )
+    v = verificar_totais(validar_venda(venda), _contas(venda), config)
+    assert v.fecha is True and v.contas[0].diferenca == D("0")
+    # sem a dedução o total do cliente sairia 50,00 acima do da API
+    sem = fabrica.venda(
+        **{
+            **venda,
+            "detalheItem": [
+                fabrica.servico(
+                    vlrTarifaTotal=D("1000.00"), vlrTxDU=D("50.00"), vlrTarifaTotalp=D("900.00")
+                )
+            ],
+        }
+    )
+    assert verificar_totais(validar_venda(sem), _contas(sem), config).contas[0].diferenca == D(
+        "50.00"
+    )

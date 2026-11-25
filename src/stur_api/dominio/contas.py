@@ -28,6 +28,9 @@ _TERMOS_CLIENTE: tuple[tuple[str, Efeito], ...] = (
     ("vlrTxEmb", "soma"),
     ("vlrTxDU", "soma"),
     ("vlrDesconto", "reduz"),
+    ("vlrTxDURepassada", "reduz"),
+    ("vlrOverRep", "reduz"),
+    ("vlrComisRepassada", "reduz"),
 )
 _TERMOS_FORNECEDOR: tuple[tuple[str, Efeito], ...] = (
     ("vlrTaxasP", "soma"),
