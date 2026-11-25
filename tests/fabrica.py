@@ -66,8 +66,8 @@ def servico(**campos: Any) -> dict[str, Any]:
     return base
 
 
-def _local(sigla: str) -> dict[str, Any]:
-    return {"sigla": sigla, "aeroporto": "", "cidade": "", "pais": "", "fusoHorario": ""}
+def _local(sigla: str, cidade: str = "") -> dict[str, Any]:
+    return {"sigla": sigla, "aeroporto": "", "cidade": cidade, "pais": "", "fusoHorario": ""}
 
 
 def trecho(
@@ -76,13 +76,19 @@ def trecho(
     destino: str,
     partida: str | None,
     chegada: str | None,
+    *,
+    origem_cidade: str = "",
+    destino_cidade: str = "",
     **campos: Any,
 ) -> dict[str, Any]:
-    """Trecho sem voo nem localizador; `origem` e `destino` são as siglas dos aeroportos."""
+    """Trecho sem voo nem localizador; `origem` e `destino` são as siglas dos aeroportos.
+
+    `origem_cidade` e `destino_cidade` preenchem `cidade` dos locais (vazia por padrão).
+    """
     base: dict[str, Any] = {
         "segmento": segmento,
-        "origem": _local(origem),
-        "destino": _local(destino),
+        "origem": _local(origem, origem_cidade),
+        "destino": _local(destino, destino_cidade),
         "dtPartida": partida,
         "dtChegada": chegada,
         "cia": "",
