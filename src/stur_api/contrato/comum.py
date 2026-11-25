@@ -45,3 +45,17 @@ SituacaoApiStur = Literal["ok", "sem_resposta", "acesso_recusado"]
 
 class SaudeStur(Contrato):
     api_stur: SituacaoApiStur
+
+
+class ErroApi(Contrato):
+    """Envelope de todo erro ao cliente (404, 500, 502, 504): em pt-BR, sem o valor."""
+
+    codigo: str
+    mensagem: str
+    detalhe: Any = None
+
+
+class ErroConsulta(ErroApi):
+    """Envelope do 422: `campo` é o parâmetro da consulta que falhou (nulo se não há um só)."""
+
+    campo: str | None = None

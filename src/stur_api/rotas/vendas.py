@@ -8,9 +8,10 @@ from fastapi import APIRouter, Depends, Query
 from stur_api.contrato.consulta import ResultadoConsulta
 from stur_api.dominio.consulta import Classificacao, ConsultaVendas, Situacao, TipoData
 from stur_api.rotas.dependencias import obter_servico
+from stur_api.rotas.respostas import ERROS_DA_AGI, PARAMETRO_INVALIDO
 from stur_api.servicos.consultas import ServicoConsulta
 
-roteador = APIRouter()
+roteador = APIRouter(responses={**PARAMETRO_INVALIDO, **ERROS_DA_AGI})
 
 
 @roteador.get("/vendas")

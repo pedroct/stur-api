@@ -13,6 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -52,7 +53,12 @@ def criar_app(servico: ServicoConsulta | None = None) -> FastAPI:
             app.state.servico = ServicoConsulta(config, ClienteAgi(config, http, relogio), relogio)
             yield
 
-    app = FastAPI(title="stur-api", version="0.1.0", lifespan=ciclo_de_vida)
+    app = FastAPI(
+        title="stur-api",
+        version="0.1.0",
+        lifespan=ciclo_de_vida,
+        generate_unique_id_function=_id_da_operacao,
+    )
     if servico is not None:
         app.state.servico = servico
     app.add_middleware(MiddlewareRegistro)
@@ -63,6 +69,11 @@ def criar_app(servico: ServicoConsulta | None = None) -> FastAPI:
     for modulo in (saude, parametros, vendas, reservas):
         app.include_router(modulo.roteador, prefix="/api/v1")
     return app
+
+
+def _id_da_operacao(rota: APIRoute) -> str:
+    """`operationId` = nome da função da rota (`consultar_vendas`): estável para os tipos."""
+    return rota.name
 
 
 def _ler_configuracao() -> Configuracao:

@@ -10,9 +10,14 @@ from fastapi import APIRouter, Depends, Response
 
 from stur_api.contrato.venda import ReservaConsultada, VendaConsultada
 from stur_api.rotas.dependencias import obter_servico
+from stur_api.rotas.respostas import (
+    ERROS_DA_AGI,
+    PARAMETRO_INVALIDO,
+    VENDA_NAO_ENCONTRADA,
+)
 from stur_api.servicos.consultas import ServicoConsulta
 
-roteador = APIRouter()
+roteador = APIRouter(responses={**PARAMETRO_INVALIDO, **ERROS_DA_AGI})
 
 Servico = Annotated[ServicoConsulta, Depends(obter_servico)]
 
@@ -30,15 +35,17 @@ async def abrir_reserva(numero: int, servico: Servico) -> ReservaConsultada:
     return await servico.abrir_reserva(numero)
 
 
-@roteador.get("/reservas/{numero}/vendas/{idreserva}")
+@roteador.get("/reservas/{numero}/vendas/{idreserva}", responses=VENDA_NAO_ENCONTRADA)
 async def abrir_venda(numero: int, idreserva: int, servico: Servico) -> VendaConsultada:
     """`idreserva` fora do número: 404 `venda_nao_encontrada`."""
     return await servico.abrir_venda(numero, idreserva)
 
 
 @roteador.get(
-    "/reservas/{numero}/vendas/{idreserva}/dado-cru", response_class=Response, responses=_DADO_CRU
+    "/reservas/{numero}/vendas/{idreserva}/dado-cru",
+    response_class=Response,
+    responses={**_DADO_CRU, **VENDA_NAO_ENCONTRADA},
 )
-async def dado_cru(numero: int, idreserva: int, servico: Servico) -> Response:
+async def dado_cru_da_venda(numero: int, idreserva: int, servico: Servico) -> Response:
     texto = await servico.dado_cru(numero, idreserva)
     return Response(content=texto, media_type="application/json")

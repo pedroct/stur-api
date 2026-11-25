@@ -6,9 +6,10 @@ from fastapi import APIRouter, Depends
 
 from stur_api.contrato.consulta import Parametros
 from stur_api.rotas.dependencias import obter_servico
+from stur_api.rotas.respostas import ERROS_DA_AGI
 from stur_api.servicos.consultas import ServicoConsulta
 
-roteador = APIRouter()
+roteador = APIRouter(responses=ERROS_DA_AGI)
 
 
 @roteador.get("/parametros")
