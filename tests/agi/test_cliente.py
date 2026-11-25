@@ -8,7 +8,8 @@ from typing import Any
 import httpx
 import pytest
 
-from stur_api.agi.cliente import ClienteAgi, FiltroAgi
+from stur_api.agi.cliente import ClienteAgi, FiltroAgi, janela_larga
+from stur_api.config import Configuracao
 from stur_api.erros import (
     ApiSturAcessoRecusado,
     ApiSturRespostaInvalida,
@@ -278,3 +279,9 @@ async def test_log_proprio_nao_tem_url_nem_credenciais_nem_token(
 def _corpo(pedido: httpx.Request) -> dict[str, Any]:
     corpo: dict[str, Any] = json.loads(pedido.content)
     return corpo
+
+
+def test_janela_larga_vai_do_inicio_configurado_ao_fim_do_ano_seguinte(
+    config: Configuracao,
+) -> None:
+    assert janela_larga(config, date(2026, 11, 25)) == (date(2020, 1, 1), date(2027, 12, 31))

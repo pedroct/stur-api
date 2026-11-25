@@ -245,3 +245,8 @@ def _erro_da_agi(resposta: httpx.Response) -> dict[str, Any]:
     if not isinstance(dados, dict):
         return {"erro": None, "detalhes": None}
     return {"erro": dados.get("Erro"), "detalhes": dados.get("Detalhes")}
+
+
+def janela_larga(config: Configuracao, hoje: date) -> tuple[date, date]:
+    """Janela larga da consulta só por número: do início configurado ao fim do ano seguinte."""
+    return config.janela_inicio, config.janela_fim(hoje)
