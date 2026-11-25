@@ -1,0 +1,119 @@
+{
+  "registros": 2,
+  "arquivos": ["vendas_exemplo.json"],
+  "campos": {
+    "idreserva": {
+      "tipos": {"int": 2},
+      "ocorrencias": 2,
+      "preenchidas": 2,
+      "valores": [["1001", 1], ["1002", 1]],
+      "nota": ""
+    },
+    "nomecliente": {
+      "tipos": {"str": 2},
+      "ocorrencias": 2,
+      "preenchidas": 2,
+      "valores": [["CLIENTE EXEMPLO LTDA", 2]],
+      "nota": "NOTA INVENTADA QUE NAO PODE IR PARA O CODIGO"
+    },
+    "dtcancelamento": {
+      "tipos": {"null": 1, "str": 1},
+      "ocorrencias": 2,
+      "preenchidas": 1,
+      "formato_data": ["yyyy-MM-dd HH:mm:ss"],
+      "valores": [["2026-11-02 10:00:00", 1]],
+      "nota": ""
+    },
+    "camposGerenciais": {
+      "tipos": {"array": 2},
+      "ocorrencias": 2,
+      "preenchidas": 0,
+      "valores": [],
+      "nota": ""
+    },
+    "detalheItem": {
+      "tipos": {"array": 2},
+      "ocorrencias": 2,
+      "preenchidas": 2,
+      "valores": [],
+      "nota": ""
+    },
+    "detalheItem[]": {
+      "tipos": {"object": 3},
+      "ocorrencias": 3,
+      "preenchidas": 3,
+      "valores": [],
+      "nota": ""
+    },
+    "detalheItem[].vlrTarifaTotal": {
+      "tipos": {"float": 3},
+      "ocorrencias": 3,
+      "preenchidas": 3,
+      "valores": [["4321.98", 3]],
+      "nota": ""
+    },
+    "detalheItem[].taxas": {
+      "tipos": {"array": 3},
+      "ocorrencias": 3,
+      "preenchidas": 1,
+      "valores": [],
+      "nota": ""
+    },
+    "detalheItem[].taxas[]": {
+      "tipos": {"object": 1},
+      "ocorrencias": 1,
+      "preenchidas": 1,
+      "valores": [],
+      "nota": ""
+    },
+    "detalheItem[].taxas[].vlrCliente": {
+      "tipos": {"float": 1},
+      "ocorrencias": 1,
+      "preenchidas": 1,
+      "valores": [["12.34", 1]],
+      "nota": ""
+    },
+    "trechos": {
+      "tipos": {"array": 2},
+      "ocorrencias": 2,
+      "preenchidas": 1,
+      "valores": [],
+      "nota": ""
+    },
+    "trechos[]": {
+      "tipos": {"object": 2},
+      "ocorrencias": 2,
+      "preenchidas": 2,
+      "valores": [],
+      "nota": ""
+    },
+    "trechos[].destino": {
+      "tipos": {"object": 2},
+      "ocorrencias": 2,
+      "preenchidas": 2,
+      "valores": [],
+      "nota": ""
+    },
+    "trechos[].destino.sigla": {
+      "tipos": {"str": 2},
+      "ocorrencias": 2,
+      "preenchidas": 2,
+      "valores": [["GIG", 2]],
+      "nota": ""
+    },
+    "trechos[].origem": {
+      "tipos": {"object": 2},
+      "ocorrencias": 2,
+      "preenchidas": 2,
+      "valores": [],
+      "nota": ""
+    },
+    "trechos[].origem.sigla": {
+      "tipos": {"str": 2},
+      "ocorrencias": 2,
+      "preenchidas": 2,
+      "valores": [["FOR", 2]],
+      "nota": ""
+    }
+  }
+}
