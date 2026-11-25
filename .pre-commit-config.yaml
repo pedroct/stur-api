@@ -44,7 +44,6 @@ repos:
         name: verificar dados reais (repositório público)
         entry: uv run python scripts/verificar_dados_reais.py
         language: system
-        types: [text]
       # semgrep fica fora do ambiente do projeto: ele fixa opentelemetry-api~=1.37 e o fastapi exige >=1.44
       - id: semgrep
         name: semgrep (SAST)
