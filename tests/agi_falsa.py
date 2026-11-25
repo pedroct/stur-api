@@ -3,7 +3,8 @@
 O `agi` das fixtures expõe `login` e `reservas` (rotas respx: `call_count`, `calls`,
 `side_effect`, `return_value`), a lista `vendas` que a AGI "tem" e `ultima_copia`, o
 `dtalteracaovinculado` da venda devolvida pela consulta pequena por ALTERACAO (a que descobre a
-data da cópia).
+data da cópia). A consulta pequena é a de ALTERACAO, 100 itens, sem `Reserva` e sem `Id` (R18):
+uma consulta por número com período de alteração responde pelo número.
 """
 
 import asyncio
@@ -80,7 +81,7 @@ class AgiFalsa:
     def _responder_reservas(self, pedido: httpx.Request) -> httpx.Response:
         corpo = carregar_json(pedido.content.decode())
         itens = corpo["ItensPorPagina"]
-        if corpo["TipoData"] == "ALTERACAO" and itens == 100 and self.ultima_copia is not None:
+        if _consulta_pequena(corpo) and self.ultima_copia is not None:
             # consulta pequena que descobre a data da cópia: uma venda com a última alteração
             vendas = [fabrica.venda(dtalteracaovinculado=self.ultima_copia)]
         else:
@@ -89,6 +90,16 @@ class AgiFalsa:
         return httpx.Response(
             200, text=fabrica.resposta_agi(vendas[inicio : inicio + itens], corpo["Pagina"])
         )
+
+
+def _consulta_pequena(corpo: dict[str, Any]) -> bool:
+    """A consulta que descobre a data da cópia: ALTERACAO, 100 itens, sem número e sem id."""
+    return (
+        corpo["TipoData"] == "ALTERACAO"
+        and corpo["ItensPorPagina"] == 100
+        and "Reserva" not in corpo
+        and "Id" not in corpo
+    )
 
 
 def _passa_nos_filtros(venda: dict[str, Any], corpo: dict[str, Any]) -> bool:

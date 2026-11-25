@@ -32,3 +32,14 @@ def test_saude_stur_sem_resposta(cliente_http: TestClient, agi: AgiFalsa) -> Non
     r = cliente_http.get("/api/v1/saude/stur")
     assert r.status_code == 200
     assert r.json() == {"apiStur": "sem_resposta"}
+
+
+def test_saude_stur_com_erro_do_httpx_nao_traduzido(
+    cliente_http: TestClient, agi: AgiFalsa
+) -> None:
+    # o cliente só traduz tempo esgotado e erro de transporte; o resto do httpx também é
+    # "sem resposta", e não um 500 (R18)
+    agi.login.side_effect = httpx.DecodingError("x")
+    r = cliente_http.get("/api/v1/saude/stur")
+    assert r.status_code == 200
+    assert r.json() == {"apiStur": "sem_resposta"}

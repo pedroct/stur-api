@@ -185,6 +185,24 @@ def test_erro_inesperado_e_500_sem_o_texto_do_erro(servico: ServicoConsulta, agi
     }
 
 
+def test_consulta_por_alteracao_com_numero_traz_as_vendas_do_numero(
+    cliente_http: TestClient, agi: AgiFalsa
+) -> None:
+    # ALTERACAO com 100 itens por página é também a forma da consulta pequena da data da cópia;
+    # com `Reserva` no pedido, a AGI falsa responde pelo número (R18)
+    agi.vendas = [fabrica.venda(reserva=90000002, idreserva=1002)]
+    r = cliente_http.get(
+        "/api/v1/vendas",
+        params={
+            "reserva": "90000002",
+            "tipoData": "alteracao",
+            "de": "2026-11-01",
+            "ate": "2026-11-17",
+        },
+    ).json()
+    assert [v["idreserva"] for v in r["vendas"]] == [1002]
+
+
 def test_situacao_unica_vai_a_agi_em_maiusculas(cliente_http: TestClient, agi: AgiFalsa) -> None:
     cliente_http.get("/api/v1/vendas", params={"reserva": "90000001", "situacao": "fechada"})
     assert json.loads(agi.reservas.calls.last.request.content)["Status"] == "FECHADA"

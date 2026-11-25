@@ -53,3 +53,13 @@ def test_parametros_sem_a_data_quando_a_agi_falha(cliente_http: TestClient, agi:
     r = cliente_http.get("/api/v1/parametros")
     assert r.status_code == 200
     assert r.json()["dadosDoSturAte"] is None
+
+
+def test_parametros_nao_repete_a_consulta_que_falhou(
+    cliente_http: TestClient, agi: AgiFalsa, relogio: RelogioFixo
+) -> None:
+    agi.reservas.side_effect = httpx.ReadTimeout("x")
+    cliente_http.get("/api/v1/parametros")
+    relogio.avancar(30)
+    assert cliente_http.get("/api/v1/parametros").json()["dadosDoSturAte"] is None
+    assert agi.reservas.call_count == 1  # a falha fica guardada por 60 s (R18)

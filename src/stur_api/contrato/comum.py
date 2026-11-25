@@ -1,7 +1,7 @@
 """Base do contrato: campos em camelCase pt-BR e `Decimal` como texto (roteiro, decisão 5)."""
 
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, PlainSerializer
 from pydantic.alias_generators import to_camel
@@ -10,6 +10,20 @@ from pydantic.alias_generators import to_camel
 def _texto_decimal(valor: Decimal) -> str:
     """Notação fixa, com as casas que o valor tem: `Decimal("1E+5")` sai `"100000"`."""
     return format(valor, "f")
+
+
+def decimais_em_texto(valor: Any) -> Any:
+    """Todo `Decimal` em dicionários e listas vira texto em notação fixa, como `DecimalTexto`.
+
+    O pydantic escreveria `str(Decimal("0.000000000"))`, que é `"0E-9"`.
+    """
+    if isinstance(valor, Decimal):
+        return _texto_decimal(valor)
+    if isinstance(valor, dict):
+        return {chave: decimais_em_texto(item) for chave, item in valor.items()}
+    if isinstance(valor, list):
+        return [decimais_em_texto(item) for item in valor]
+    return valor
 
 
 # Dinheiro, câmbio e percentuais: no JSON saem como texto decimal, sem passar por `float`.

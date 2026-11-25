@@ -18,7 +18,7 @@ from stur_api.agi.cliente import ClienteAgi
 from stur_api.config import Configuracao
 from stur_api.erros import ConsultaInvalida, ErroAplicacao, ErroInterno
 from stur_api.relogio import RelogioSistema
-from stur_api.rotas import parametros, saude, vendas
+from stur_api.rotas import parametros, reservas, saude, vendas
 from stur_api.servicos.consultas import ServicoConsulta
 
 PARAMETRO_INVALIDO = "parametro_invalido"
@@ -45,7 +45,7 @@ def criar_app(servico: ServicoConsulta | None = None) -> FastAPI:
     app.exception_handler(ErroAplicacao)(_erro_da_aplicacao)
     app.exception_handler(RequestValidationError)(_parametro_invalido)
     app.exception_handler(Exception)(_erro_inesperado)
-    for modulo in (saude, parametros, vendas):
+    for modulo in (saude, parametros, vendas, reservas):
         app.include_router(modulo.roteador, prefix="/api/v1")
     return app
 

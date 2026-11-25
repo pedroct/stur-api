@@ -88,6 +88,33 @@ async def test_obter_com_falha_da_agi_devolve_none(
     assert await DataDaCopia(cliente, relogio, 300).obter() is None
 
 
+async def test_obter_guarda_a_falha_por_60_s(
+    cliente: ClienteAgi, agi: AgiFalsa, relogio: RelogioFixo
+) -> None:
+    # com a AGI fora do ar, cada /parametros não espera de novo o tempo limite (R18)
+    copia = fabrica.resposta_agi([fabrica.venda(dtalteracaovinculado="2026-11-18 09:30:00")])
+    agi.reservas.side_effect = [httpx.ReadTimeout("x"), httpx.Response(200, text=copia)]
+    data_copia = DataDaCopia(cliente, relogio, 300)
+    assert await data_copia.obter() is None
+    relogio.avancar(59)
+    assert await data_copia.obter() is None
+    assert agi.reservas.call_count == 1
+    relogio.avancar(1)
+    assert await data_copia.obter() == "2026-11-18T09:30:00"
+    assert agi.reservas.call_count == 2
+
+
+async def test_obter_depois_da_falha_usa_a_data_registrada(
+    cliente: ClienteAgi, agi: AgiFalsa, relogio: RelogioFixo
+) -> None:
+    agi.reservas.side_effect = httpx.ReadTimeout("x")
+    data_copia = DataDaCopia(cliente, relogio, 300)
+    assert await data_copia.obter() is None
+    data_copia.registrar(_vendas("2026-11-18 09:30:00"))  # uma consulta de vendas deu certo
+    assert await data_copia.obter() == "2026-11-18T09:30:00"
+    assert agi.reservas.call_count == 1
+
+
 async def test_obter_com_data_em_formato_desconhecido_devolve_none(
     cliente: ClienteAgi, agi: AgiFalsa, relogio: RelogioFixo
 ) -> None:

@@ -13,6 +13,9 @@ from stur_api.erros import ErroAplicacao
 from stur_api.relogio import Relogio
 
 _ITENS_DA_CONSULTA_PEQUENA = 100
+# Com a AGI fora do ar, a consulta pequena só é tentada de novo depois disto (R18): sem isso,
+# cada `/parametros` esperaria o tempo limite inteiro antes de responder.
+_ESPERA_DEPOIS_DA_FALHA = timedelta(seconds=60)
 
 
 class DataDaCopia:
@@ -21,6 +24,7 @@ class DataDaCopia:
         self._relogio = relogio
         self._validade = timedelta(seconds=ttl_s)
         self._ultima: tuple[str, datetime] | None = None  # (data, quando foi vista)
+        self._falhou_em: datetime | None = None  # última consulta pequena que falhou
 
     def registrar(self, vendas: list[VendaAgi]) -> str | None:
         """Maior `dtalteracaovinculado` das vendas, em ISO com `T`; passa a ser a última vista.
@@ -40,12 +44,18 @@ class DataDaCopia:
         return maior
 
     async def obter(self) -> str | None:
-        """A última vista há menos de `ttl_s`; senão, uma consulta pequena. Falha → `None`."""
+        """A última vista há menos de `ttl_s`; senão, uma consulta pequena. Falha → `None`.
+
+        Depois de uma falha, devolve `None` sem chamar a AGI por 60 s.
+        """
+        agora = self._relogio.agora()
         if self._ultima is not None:
             data, vista_em = self._ultima
-            if self._relogio.agora() - vista_em < self._validade:
+            if agora - vista_em < self._validade:
                 return data
-        inicio, fim = janela_larga(self._cliente.config, self._relogio.agora().date())
+        if self._falhou_em is not None and agora - self._falhou_em < _ESPERA_DEPOIS_DA_FALHA:
+            return None
+        inicio, fim = janela_larga(self._cliente.config, agora.date())
         filtro = FiltroAgi(
             tipo_data="ALTERACAO",
             data_inicial=inicio,
@@ -57,4 +67,5 @@ class DataDaCopia:
             vendas = [validar_venda(v) for v in await self._cliente.buscar_vendas(filtro)]
             return self.registrar(vendas)
         except ErroAplicacao:
+            self._falhou_em = self._relogio.agora()  # depois da espera, não antes
             return None  # sem a data, a tela só não mostra "Dados do Stur até …"
