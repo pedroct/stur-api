@@ -6,10 +6,13 @@ from datetime import datetime, timedelta
 import httpx
 import pytest
 import respx
+from fastapi.testclient import TestClient
 
 from stur_api.agi.cliente import ClienteAgi
 from stur_api.config import Configuracao
+from stur_api.main import criar_app
 from stur_api.relogio import FUSO_HORARIO
+from stur_api.servicos.consultas import ServicoConsulta
 from tests.agi_falsa import AgiFalsa
 
 
@@ -54,3 +57,18 @@ async def cliente(
 ) -> AsyncIterator[ClienteAgi]:
     async with httpx.AsyncClient() as http:
         yield ClienteAgi(config, http, relogio)
+
+
+# --- Task 11: serviço da consulta e cliente HTTP da aplicação ---
+
+
+@pytest.fixture
+def servico(config: Configuracao, cliente: ClienteAgi, relogio: RelogioFixo) -> ServicoConsulta:
+    return ServicoConsulta(config, cliente, relogio)
+
+
+@pytest.fixture
+def cliente_http(servico: ServicoConsulta) -> Iterator[TestClient]:
+    """A aplicação com o serviço sobre a AGI falsa (o ciclo de vida não monta o real)."""
+    with TestClient(criar_app(servico)) as http:
+        yield http

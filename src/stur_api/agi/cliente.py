@@ -96,6 +96,11 @@ class ClienteAgi:
         self._expira_em: datetime | None = None
         self._trava_login = asyncio.Lock()
 
+    @property
+    def config(self) -> Configuracao:
+        """Configuração do acesso à AGI (janela larga, itens por página, tempo limite)."""
+        return self._config
+
     async def verificar_acesso(self) -> None:
         """Faz um login de verdade (não reaproveita o token): prova que as credenciais valem."""
         async with self._trava_login:
