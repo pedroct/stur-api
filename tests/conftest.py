@@ -1,10 +1,16 @@
 """Fixtures compartilhadas. Cada task acrescenta a sua seção."""
 
+from collections.abc import AsyncIterator, Iterator
 from datetime import datetime, timedelta
 
+import httpx
 import pytest
+import respx
 
+from stur_api.agi.cliente import ClienteAgi
 from stur_api.config import Configuracao
+from stur_api.relogio import FUSO_HORARIO
+from tests.agi_falsa import AgiFalsa
 
 
 @pytest.fixture
@@ -29,3 +35,22 @@ class RelogioFixo:
 
     def avancar(self, segundos: float) -> None:
         self._instante += timedelta(seconds=segundos)
+
+
+@pytest.fixture
+def relogio() -> RelogioFixo:
+    return RelogioFixo(datetime(2026, 11, 25, 10, 0, tzinfo=FUSO_HORARIO))
+
+
+@pytest.fixture
+def agi(relogio: RelogioFixo) -> Iterator[AgiFalsa]:
+    with respx.mock(assert_all_called=False) as roteador:
+        yield AgiFalsa(roteador, relogio)
+
+
+@pytest.fixture
+async def cliente(
+    config: Configuracao, agi: AgiFalsa, relogio: RelogioFixo
+) -> AsyncIterator[ClienteAgi]:
+    async with httpx.AsyncClient() as http:
+        yield ClienteAgi(config, http, relogio)

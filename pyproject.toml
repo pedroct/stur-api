@@ -64,6 +64,10 @@ testpaths = ["tests"]
 addopts = "-ra"
 asyncio_mode = "auto"
 pythonpath = ["scripts"]
+filterwarnings = [
+    # Starlette 1.x avisa que o TestClient prefere httpx2; o httpx segue suportado (Task 1).
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
 
 [tool.bandit]
 exclude_dirs = ["tests"]
