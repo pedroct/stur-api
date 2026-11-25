@@ -909,30 +909,16 @@
             "title": "Idvendafee"
           },
           "idreserva": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Idreserva"
+            "title": "Idreserva",
+            "type": "integer"
           },
           "margem": {
             "title": "Margem",
             "type": "string"
           },
           "numero": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Numero"
+            "title": "Numero",
+            "type": "integer"
           },
           "passageiros": {
             "items": {
@@ -2149,30 +2135,16 @@
             "title": "Idvendafee"
           },
           "idreserva": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Idreserva"
+            "title": "Idreserva",
+            "type": "integer"
           },
           "margem": {
             "title": "Margem",
             "type": "string"
           },
           "numero": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Numero"
+            "title": "Numero",
+            "type": "integer"
           },
           "passageiros": {
             "items": {

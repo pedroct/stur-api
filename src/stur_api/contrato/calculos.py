@@ -15,8 +15,10 @@ from stur_api.dominio.vendas import TipoVenda
 
 
 class ResumoVenda(Contrato):
-    numero: int | None
-    idreserva: int | None
+    # Opcionais no domínio, obrigatórios no contrato: `validar_venda` recusa a venda sem os dois
+    # antes de qualquer `resumir` (um `None` aqui seria bug nosso e estoura na validação).
+    numero: int
+    idreserva: int
     produto: str | None
     classificacao: str | None
     categoria: str | None

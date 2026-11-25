@@ -1,5 +1,7 @@
 from dataclasses import fields
 from decimal import Decimal
+from types import NoneType
+from typing import get_args, get_type_hints
 
 import pytest
 from pydantic import BaseModel
@@ -61,6 +63,49 @@ def test_contrato_tem_os_campos_do_dominio(dominio: type, contrato: type[BaseMod
     nomes = [f.name for f in fields(dominio)]
     assert list(contrato.model_fields) == nomes
     assert [contrato.model_fields[n].alias for n in nomes] == [to_camel(n) for n in nomes]
+
+
+# O domínio pode ter `None` onde o contrato não tem: só estes campos, e por quê.
+# `validar_venda` recusa venda sem `reserva`/`idreserva` antes de qualquer `resumir`.
+_CONTRATO_MAIS_ESTRITO = {("ResumoVenda", "numero"), ("ResumoVenda", "idreserva")}
+
+
+@pytest.mark.parametrize(
+    ("dominio", "contrato"),
+    [
+        (vendas.ResumoVenda, calculos.ResumoVenda),
+        (resultado.ResumoResultado, calculos.ResumoResultado),
+        (resultado.ResumoIncentivos, calculos.ResumoIncentivos),
+        (vendas.TotaisReserva, calculos.TotaisReserva),
+        (contas.TermoConta, calculos.TermoConta),
+        (contas.Conversao, calculos.Conversao),
+        (contas.ContaLado, calculos.ContaLado),
+        (contas.ContaServico, calculos.ContaServico),
+        (contas.ContaVerificada, calculos.ContaVerificada),
+        (contas.Verificacao, calculos.Verificacao),
+        (lancamentos.LancamentoCalculado, calculos.LancamentoCalculado),
+        (itinerario.Espera, calculos.Espera),
+        (itinerario.Trajeto, calculos.Trajeto),
+        (itinerario.Estadia, calculos.Estadia),
+        (itinerario.Itinerario, calculos.Itinerario),
+        (estado_servico.EstadoServico, calculos.EstadoServico),
+    ],
+)
+def test_contrato_nao_muda_a_nulidade_do_dominio(dominio: type, contrato: type[BaseModel]) -> None:
+    dicas = get_type_hints(dominio)
+    for nome in dicas:
+        no_dominio = NoneType in get_args(dicas[nome])
+        no_contrato = NoneType in get_args(contrato.model_fields[nome].annotation)
+        if (dominio.__name__, nome) in _CONTRATO_MAIS_ESTRITO:
+            assert no_dominio
+            assert not no_contrato
+        else:
+            assert no_dominio == no_contrato, f"{dominio.__name__}.{nome}"
+
+
+def test_resumo_venda_do_contrato_exige_numero_e_idreserva() -> None:
+    assert calculos.ResumoVenda.model_fields["numero"].annotation is int
+    assert calculos.ResumoVenda.model_fields["idreserva"].annotation is int
 
 
 def test_decimais_em_texto_em_qualquer_nivel() -> None:
