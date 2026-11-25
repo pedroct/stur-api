@@ -9,9 +9,7 @@ from stur_api.dominio.consulta import ConsultaVendas
 from stur_api.dominio.contas import ZERO, percentual_lucro
 from stur_api.dominio.datas import ler_data_hora
 from stur_api.dominio.textos import contem, normalizar
-from stur_api.dominio.vendas import ResumoVenda
-
-_CANCELADA = "cancelada"
+from stur_api.dominio.vendas import CANCELADA, ResumoVenda
 
 
 @dataclass(frozen=True)
@@ -88,9 +86,9 @@ def ordenar_resultado(resumos: list[ResumoVenda], c: ConsultaVendas) -> list[Res
 
 
 def resumir_resultado(resumos: list[ResumoVenda]) -> ResumoResultado:
-    """Quantidade, totais e margem só das vendas a cliente; incentivos e canceladas à parte."""
-    clientes = [r for r in resumos if r.tipo == "venda" and r.situacao != _CANCELADA]
-    incentivos = [r for r in resumos if r.tipo == "incentivo" and r.situacao != _CANCELADA]
+    """Quantidade, totais e margem das vendas a cliente (fee incluído); incentivos à parte."""
+    clientes = [r for r in resumos if r.tipo != "incentivo" and r.situacao != CANCELADA]
+    incentivos = [r for r in resumos if r.tipo == "incentivo" and r.situacao != CANCELADA]
     total_cliente = sum((r.total_cliente for r in clientes), start=ZERO)
     margem = sum((r.margem for r in clientes), start=ZERO)
     valor_incentivos = sum((r.margem for r in incentivos), start=ZERO)
@@ -102,7 +100,7 @@ def resumir_resultado(resumos: list[ResumoVenda]) -> ResumoResultado:
         margem=margem,
         percentual_lucro=percentual_lucro(margem, total_cliente),
         nao_fecham=sum(1 for r in resumos if not r.conta_fecha),
-        canceladas=sum(1 for r in resumos if r.tipo == "venda" and r.situacao == _CANCELADA),
+        canceladas=sum(1 for r in resumos if r.situacao == CANCELADA),
         incentivos=ResumoIncentivos(
             quantidade=len(incentivos),
             valor=valor_incentivos,

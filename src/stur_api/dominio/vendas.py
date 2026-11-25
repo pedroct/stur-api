@@ -15,7 +15,7 @@ from stur_api.dominio.textos import normalizar
 
 TipoVenda = Literal["venda", "fee", "incentivo"]
 
-_CANCELADA = "cancelada"
+CANCELADA = "cancelada"
 
 
 @dataclass(frozen=True)
@@ -119,7 +119,7 @@ def ordenar_por_lancamento(vendas: list[VendaAgi]) -> list[VendaAgi]:
 
 def totais_da_reserva(resumos: list[ResumoVenda]) -> TotaisReserva:
     """Soma só as vendas não canceladas; a quantidade conta todas (PRD 8.1)."""
-    ativas = [r for r in resumos if r.situacao != _CANCELADA]
+    ativas = [r for r in resumos if r.situacao != CANCELADA]
     total_cliente = sum((r.total_cliente for r in ativas), start=ZERO)
     margem = sum((r.margem for r in ativas), start=ZERO)
     return TotaisReserva(

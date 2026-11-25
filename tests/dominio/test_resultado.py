@@ -114,7 +114,35 @@ def test_incentivo_cancelado_nao_soma_no_valor() -> None:
     r = resumir_resultado(resumos)
     assert r.incentivos.quantidade == 1
     assert r.incentivos.valor == D("300")
-    assert r.canceladas == 0
+    assert r.canceladas == 1
+
+
+def test_fee_entra_na_quantidade_no_total_e_na_margem() -> None:
+    resumos = [
+        _r(idreserva=1001, total_cliente=D("1000"), margem=D("100")),
+        _r(idreserva=1002, tipo="fee", total_cliente=D("100"), margem=D("100")),
+    ]
+    r = resumir_resultado(resumos)
+    assert r.quantidade == 2
+    assert r.total_cliente == D("1100")
+    assert r.margem == D("200")
+    assert r.percentual_lucro == D("18.18")
+    assert r.incentivos.margem_com_incentivos == D("200")
+
+
+def test_canceladas_contam_toda_linha_cancelada_de_qualquer_tipo() -> None:
+    resumos = [
+        _r(idreserva=1001, total_cliente=D("1000"), margem=D("100")),
+        _r(idreserva=1002, situacao="cancelada", total_cliente=D("900"), margem=D("90")),
+        _r(idreserva=1003, tipo="fee", situacao="cancelada", total_cliente=D("50"), margem=D("50")),
+        _r(idreserva=1004, tipo="incentivo", situacao="cancelada", margem=D("200")),
+    ]
+    r = resumir_resultado(resumos)
+    assert r.canceladas == 3
+    assert r.quantidade == 1
+    assert r.total_cliente == D("1000")
+    assert r.incentivos.quantidade == 0
+    assert r.incentivos.valor == D("0")
 
 
 def test_resumo_vazio_nao_divide_por_zero() -> None:

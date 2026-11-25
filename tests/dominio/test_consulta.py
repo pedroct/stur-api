@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 
 from stur_api.config import Configuracao
-from stur_api.dominio.consulta import ConsultaVendas, filtro_agi, validar_consulta
+from stur_api.dominio.consulta import ConsultaVendas, TipoData, filtro_agi, validar_consulta
 from stur_api.erros import ConsultaInvalida
 
 
@@ -107,12 +107,13 @@ def test_so_numero_ignora_o_tipo_de_data(config: Configuracao) -> None:
 
 
 def test_periodo_usa_o_tipo_de_data_em_maiusculas(config: Configuracao) -> None:
-    for tipo, esperado in [
+    casos: list[tuple[TipoData, str]] = [
         ("emissao", "EMISSAO"),
         ("confirmacao", "CONFIRMACAO"),
         ("alteracao", "ALTERACAO"),
-    ]:
-        c = ConsultaVendas(None, tipo_data=tipo, de=date(2026, 11, 1), ate=date(2026, 11, 5))  # type: ignore[arg-type]
+    ]
+    for tipo, esperado in casos:
+        c = ConsultaVendas(None, tipo_data=tipo, de=date(2026, 11, 1), ate=date(2026, 11, 5))
         f = filtro_agi(c, config, date(2026, 11, 25))
         assert (f.tipo_data, f.data_inicial, f.data_final, f.reserva) == (
             esperado,
