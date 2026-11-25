@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Any
 
 from stur_api.agi.json_cru import serializar_cru
-from stur_api.agi.modelos import ServicoAgi, TrechoAgi
+from stur_api.agi.modelos import ServicoAgi, TrechoAgi, VendaAgi
 
 ZERO = Decimal("0")
 UM = Decimal("1")
@@ -237,6 +237,10 @@ def resposta_agi(vendas: list[dict[str, Any]], pagina: int = 1) -> str:
 
 def validar_servico(s: dict[str, Any]) -> ServicoAgi:
     return ServicoAgi.model_validate(s)
+
+
+def validar_venda(v: dict[str, Any]) -> VendaAgi:
+    return VendaAgi.model_validate(v)
 
 
 def validar_trechos(t: list[dict[str, Any]]) -> list[TrechoAgi]:
