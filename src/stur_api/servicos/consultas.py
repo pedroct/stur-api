@@ -95,7 +95,7 @@ class ServicoConsulta:
                 return guardado
         consultado_em = self._relogio.agora()
         filtro = filtro_agi(c, self._config, consultado_em.date())
-        vendas = [validar_venda(v) for v in await self._cliente.buscar_vendas(filtro)]
+        vendas = _validar_vendas(await self._cliente.buscar_vendas(filtro))
         dados_ate = await self._dados_ate(vendas)
         resumos = [dominio_vendas.resumir(v, self._config) for v in vendas]
         achados = ordenar_resultado(aplicar_filtros(resumos, c), c)

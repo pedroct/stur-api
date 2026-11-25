@@ -35,11 +35,13 @@ def test_log_nao_tem_filtro_nem_corpo(
             detalheItem=[fabrica.servico(nomePax="MARIA DA SILVA")],
         )
     ]
-    cliente_http.get(
+    lista = cliente_http.get(
         "/api/v1/vendas",
         params={"reserva": "90000001", "de": "2026-11-01", "ate": "2026-11-17", "cliente": "maria"},
     )
-    cliente_http.get("/api/v1/reservas/90000001/vendas/1001")
+    venda = cliente_http.get("/api/v1/reservas/90000001/vendas/1001")
+    # sem isto o teste passaria com dois 4xx/5xx que nunca chegaram a gerar log de AGI
+    assert (lista.status_code, venda.status_code) == (200, 200)
     assert "MARIA" not in caplog.text.upper() and "maria" not in caplog.text
     assert ROTA_DA_VENDA in caplog.text and "idreserva=1001" in caplog.text
     assert "agi.exemplo.invalid" not in caplog.text  # a URL da AGI nunca vai ao log

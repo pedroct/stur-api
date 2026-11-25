@@ -1,7 +1,9 @@
 """Contas por serviço (cliente, fornecedor, margem) e verificação dos totais da venda (PRD 8.3).
 
 Código puro, sem entrada nem saída. Campo ausente (`None`) conta como zero. Os totais ficam
-sem arredondar para comparar; o arredondamento para 2 casas (`ROUND_HALF_UP`) é do contrato.
+sem arredondar para comparar. O contrato também não arredonda: o dinheiro em texto sai com as casas
+do cálculo (pode passar de 2, por exemplo com termo convertido pelo câmbio). O `ROUND_HALF_UP`
+a 2 casas só entra na porcentagem de lucro.
 """
 
 from dataclasses import dataclass

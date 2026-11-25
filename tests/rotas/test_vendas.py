@@ -165,11 +165,11 @@ def test_agi_sem_resposta_e_504_com_a_mensagem(cliente_http: TestClient, agi: Ag
 
 
 def test_venda_com_tipo_errado_e_502_sem_o_valor(cliente_http: TestClient, agi: AgiFalsa) -> None:
-    agi.vendas = [fabrica.venda(totalCliente="mil e cinquenta")]
+    agi.vendas = [fabrica.venda(), fabrica.venda(idreserva=1002, totalCliente="mil e cinquenta")]
     r = cliente_http.get("/api/v1/vendas", params={"reserva": "90000001"})
     assert r.status_code == 502
     assert r.json()["codigo"] == "api_stur_resposta_invalida"
-    assert r.json()["detalhe"] == ["totalCliente: decimal_parsing"]
+    assert r.json()["detalhe"] == ["venda 1002: totalCliente: decimal_parsing"]  # aponta a venda
     assert "mil e cinquenta" not in r.text
 
 
