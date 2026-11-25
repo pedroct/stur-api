@@ -21,6 +21,30 @@ _SO_DIGITOS = re.compile(r"[0-9]{1,18}")
 _log = logging.getLogger("api.requisicao")
 
 
+class _FiltroSemExcecao(logging.Filter):
+    """Troca o traceback e a mensagem da exceção pelo NOME da classe.
+
+    O uvicorn registra `Exception in ASGI application` com `exc_info` em `uvicorn.error`, e a
+    mensagem da exceção (ou um `ValidationError` do pydantic, com `input_value`) pode carregar
+    nome de cliente ou passageiro vindo da AGI. A linha do middleware já traz rota e status.
+    """
+
+    _stur_api = True
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.exc_info and record.exc_info[1] is not None:
+            record.msg = "excecao_nao_tratada erro=%s"
+            record.args = (type(record.exc_info[1]).__name__,)
+            record.exc_info = None
+            record.exc_text = None
+        return True
+
+
+def _instalar_filtro(destino: logging.Logger | logging.Handler) -> None:
+    if not any(getattr(f, "_stur_api", False) for f in destino.filters):
+        destino.addFilter(_FiltroSemExcecao())
+
+
 def _rota(scope: Scope) -> str:
     """O modelo da rota com o prefixo dos roteadores (`/api/v1/reservas/{numero}`), ou `-`.
 
@@ -59,6 +83,7 @@ class _SaidaPadrao(logging.Handler):
 def configurar_registro(nivel: str = "INFO") -> None:
     """Configura a raiz com uma linha por evento. Idempotente.
 
+    Nenhum traceback sai no log: só `excecao_nao_tratada erro=<Classe>` (ver `_FiltroSemExcecao`).
     Não toca em `uvicorn.access` (o Docker o desliga com `--no-access-log`; ele grava a query).
     """
     raiz = logging.getLogger()
@@ -67,6 +92,8 @@ def configurar_registro(nivel: str = "INFO") -> None:
         manipulador = _SaidaPadrao()
         manipulador.setFormatter(logging.Formatter(_FORMATO, _DATA))
         raiz.addHandler(manipulador)
+    _instalar_filtro(manipulador)  # o que propaga até a raiz com exc_info (asyncio, por exemplo)
+    _instalar_filtro(logging.getLogger("uvicorn.error"))  # o handler do uvicorn é só dele
     raiz.setLevel(nivel.upper())
     for nome in _LOGGERS_SILENCIADOS:
         logging.getLogger(nome).setLevel(logging.WARNING)

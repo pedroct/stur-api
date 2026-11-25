@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import BaseModel, ValidationError
 
 from stur_api.main import criar_app
 from stur_api.registro import configurar_registro
@@ -95,6 +96,11 @@ def test_excecao_no_handler_loga_status_500_e_nao_engole(
     servico: ServicoConsulta,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    """Prova só a linha do NOSSO middleware (status 500, rota, classe) e que a exceção sobe.
+
+    O que o uvicorn escreve ao receber essa exceção NÃO é coberto aqui: o TestClient não é o
+    uvicorn. Isso é o `test_traceback_do_uvicorn_...` abaixo.
+    """
     app = criar_app(servico)
 
     @app.get("/api/v1/explode/{numero}")
@@ -110,7 +116,7 @@ def test_excecao_no_handler_loga_status_500_e_nao_engole(
     assert "status=500" in linha and "numero=90000001" in linha
     assert "rota=/api/v1/explode/{numero}" in linha
     assert "erro=ValueError" in linha
-    assert "MARIA" not in caplog.text.upper()
+    assert "MARIA" not in linha.upper()  # a linha do middleware nunca leva a mensagem
 
     # a exceção continua subindo: com raise_server_exceptions o cliente de teste a vê
     with TestClient(app) as http, pytest.raises(ValueError):
@@ -163,6 +169,8 @@ def test_configurar_registro_silencia_httpx_e_nao_mexe_no_access_log() -> None:
     assert (acesso.level, acesso.disabled, list(acesso.handlers), acesso.propagate) == antes
     marcados = [h for h in logging.getLogger().handlers if getattr(h, "_stur_api", False)]
     assert len(marcados) == 1
+    for destino in (marcados[0], logging.getLogger("uvicorn.error")):
+        assert len([f for f in destino.filters if getattr(f, "_stur_api", False)]) == 1
 
 
 def test_formato_chave_valor(capsys: pytest.CaptureFixture[str]) -> None:
@@ -171,6 +179,66 @@ def test_formato_chave_valor(capsys: pytest.CaptureFixture[str]) -> None:
     err = capsys.readouterr().err
     assert "nivel=INFO" in err and "logger=api.requisicao" in err
     assert "metodo=GET rota=/x status=200" in err
+
+
+# --- exceção não tratada: o uvicorn a registra com traceback (fix round 1) ---
+
+
+class _Dados(BaseModel):
+    numero: int
+    passageiros: list[str]
+
+
+def _formatado_pelo_nosso_handler(registro: logging.LogRecord) -> str:
+    (nosso,) = [h for h in logging.getLogger().handlers if getattr(h, "_stur_api", False)]
+    return nosso.format(registro)
+
+
+def test_traceback_do_uvicorn_nao_leva_mensagem_da_excecao(
+    caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Emite exatamente como o uvicorn faz (h11_impl: `logger.error(..., exc_info=exc)`)."""
+    configurar_registro()
+    caplog.set_level(logging.DEBUG)
+    logging.getLogger("uvicorn.error").error(
+        "Exception in ASGI application\n", exc_info=ValueError("MARIA DA SILVA")
+    )
+    (registro,) = [r for r in caplog.records if r.name == "uvicorn.error"]
+    assert registro.getMessage() == "excecao_nao_tratada erro=ValueError"
+    assert registro.exc_info is None and registro.exc_text is None
+    assert "MARIA" not in caplog.text.upper()
+    assert "MARIA" not in _formatado_pelo_nosso_handler(registro).upper()
+    assert "Traceback" not in caplog.text
+
+
+def test_validation_error_do_pydantic_nao_vaza_input_value(
+    caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
+) -> None:
+    configurar_registro()
+    caplog.set_level(logging.DEBUG)
+    with pytest.raises(ValidationError) as capturado:
+        _Dados.model_validate({"passageiros": ["JOAO PASSAGEIRO"]})  # falta `numero`
+    assert "JOAO PASSAGEIRO" in str(capturado.value)  # sanidade: o erro original TEM o nome
+    erro = capturado.value
+    logging.getLogger("uvicorn.error").error(
+        "Exception in ASGI application\n", exc_info=(type(erro), erro, erro.__traceback__)
+    )
+    # o que vem de outro logger (asyncio, por exemplo) chega à raiz: o handler nosso filtra
+    logging.getLogger("asyncio").error("Task exception was never retrieved", exc_info=erro)
+    assert "JOAO" not in caplog.text.upper()
+    saida = capsys.readouterr().err
+    assert "JOAO" not in saida.upper() and "input_value" not in saida
+    assert "excecao_nao_tratada erro=ValidationError" in saida
+    assert "excecao_nao_tratada erro=ValidationError" in caplog.text
+
+
+def test_registros_sem_excecao_ficam_como_estao(caplog: pytest.LogCaptureFixture) -> None:
+    configurar_registro()
+    caplog.set_level(logging.DEBUG)
+    logging.getLogger("qualquer").warning("busca %s falhou erro=%s", "1005", "Classe")
+    logging.getLogger("uvicorn.error").info("Application startup complete.")
+    mensagens = [r.getMessage() for r in caplog.records]
+    assert mensagens == ["busca 1005 falhou erro=Classe", "Application startup complete."]
 
 
 # --- lifespan: configuração inválida sem valores (R18b) ---
