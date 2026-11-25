@@ -38,10 +38,10 @@ def _situacao(a_receber: Decimal | None, recebido: Decimal | None) -> SituacaoLa
     return "recebido_em_parte"
 
 
-def _vencido(situacao: SituacaoLancamento, vencimento: str | None, hoje: date) -> bool:
+def _vencido(situacao: SituacaoLancamento, vencimento: str | None, hoje: date, campo: str) -> bool:
     if situacao != "em_aberto":
         return False
-    data = ler_data_hora(vencimento)
+    data = ler_data_hora(vencimento, campo)
     return data is not None and data.date() < hoje
 
 
@@ -57,7 +57,7 @@ def situacao_dos_recebimentos(venda: VendaAgi, hoje: date) -> list[LancamentoCal
                 valor_exibido=recebimento.valor or ZERO,
                 eh_credito=False,
                 situacao=situacao,
-                vencido=_vencido(situacao, recebimento.dtVencto, hoje),
+                vencido=_vencido(situacao, recebimento.dtVencto, hoje, "recebimentos[].dtVencto"),
                 cartao_repassado=bool(recebimento.cartaoRepassadoAoFornecedor),
             )
         )
@@ -81,7 +81,7 @@ def situacao_dos_pagamentos(venda: VendaAgi, hoje: date) -> list[LancamentoCalcu
                 valor_exibido=-valor if eh_credito else valor,
                 eh_credito=eh_credito,
                 situacao=situacao,
-                vencido=_vencido(situacao, pagamento.dtVencto, hoje),
+                vencido=_vencido(situacao, pagamento.dtVencto, hoje, "pagamentos[].dtVencto"),
                 cartao_repassado=False,
             )
         )

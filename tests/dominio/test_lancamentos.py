@@ -1,11 +1,14 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from stur_api.dominio.lancamentos import (
     situacao_dos_pagamentos,
     situacao_dos_recebimentos,
     total_dos_pagamentos,
 )
+from stur_api.erros import ApiSturRespostaInvalida
 from tests import fabrica
 from tests.fabrica import validar_venda
 
@@ -195,3 +198,30 @@ def test_credito_lei_kandir_vem_como_esta() -> None:
 
 def test_total_dos_pagamentos_sem_pagamentos_e_zero() -> None:
     assert total_dos_pagamentos(validar_venda(fabrica.venda(pagamentos=None))) == D("0")
+
+
+def test_vencimento_em_formato_novo_nos_recebimentos_levanta_erro() -> None:
+    v = validar_venda(
+        fabrica.venda(
+            totalAReceberCliente=D("100.00"),
+            totalRecebidoCliente=D("0"),
+            recebimentos=[fabrica.recebimento(dtVencto="17/11/2026")],
+        )
+    )
+    with pytest.raises(ApiSturRespostaInvalida) as erro:
+        situacao_dos_recebimentos(v, HOJE)
+    assert erro.value.detalhe == ["recebimentos[].dtVencto: formato_de_data_invalido"]
+    assert "17/11/2026" not in repr(erro.value.detalhe)
+
+
+def test_vencimento_em_formato_novo_nos_pagamentos_levanta_erro() -> None:
+    v = validar_venda(
+        fabrica.venda(
+            totalAPagarFornec=D("100.00"),
+            totalPagoFornec=D("0"),
+            pagamentos=[fabrica.pagamento(dtVencto="2026-11-17T00:00:00Z")],
+        )
+    )
+    with pytest.raises(ApiSturRespostaInvalida) as erro:
+        situacao_dos_pagamentos(v, HOJE)
+    assert erro.value.detalhe == ["pagamentos[].dtVencto: formato_de_data_invalido"]
