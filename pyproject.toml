@@ -82,7 +82,13 @@ branch = "main"
 version_toml = ["pyproject.toml:project.version"]   # PSR escreve a versão aqui
 allow_zero_version = true                            # mantém 0.y.z até a 1ª estável
 commit_parser = "conventional"
-build_command = "uv build"                           # opcional: artefato no release
+# A action do PSR roda num contêiner sem uv: instala o uv e só atualiza a versão do próprio
+# projeto no uv.lock (sem subir dependência). Não há wheel a publicar: a entrega é a imagem.
+build_command = """
+    pip install uv==0.11.21
+    uv lock --upgrade-package "$PACKAGE_NAME"
+    git add uv.lock
+"""
 
 [tool.semantic_release.changelog]
 mode = "update"                                      # mantém CHANGELOG.md acumulado

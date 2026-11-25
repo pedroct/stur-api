@@ -134,9 +134,21 @@ Os loggers `httpx` e `httpcore` ficam em WARNING porque o INFO deles grava a URL
 - `.github/workflows/ci.yml` (pull request e push): `quality` (ruff, mypy, bandit, pytest com
   cobertura), `sast` (semgrep), `segredos` (gitleaks), `contrato` (`openapi.json` em dia) e
   `imagem` (build sem publicar, com um teste de saúde).
-- `.github/workflows/release.yml` (push na `main`): `python-semantic-release` calcula a
-  versão pelos Conventional Commits; se houve versão, publica
-  `ghcr.io/pedroct/stur-api:{versão}` (`linux/amd64`).
+- `.github/workflows/release.yml`: roda **depois** do `ci`, via `workflow_run`, e só se o
+  `ci` foi um push na `main` com todos os jobs verdes.
 
-As Actions de terceiros ficam fixadas por SHA de commit, com a versão em comentário.
-Commits em Conventional Commits, descrição em pt-BR.
+Fluxo da `main`: push -> CI verde -> release -> imagem.
+
+1. O push na `main` dispara o `ci`. Na `main` ele não é cancelado por um push seguinte.
+2. Se o `ci` terminou verde, o `release` leva a `main` ao commit que o CI aprovou
+   (`git reset --hard` no `head_sha`) e roda o `python-semantic-release`: calcula a versão
+   pelos Conventional Commits, atualiza `pyproject.toml`, `uv.lock` (só a versão do próprio
+   projeto) e `CHANGELOG.md`, e cria o commit de versão, a tag e o GitHub Release. Sem
+   `feat`/`fix` desde a última tag, não há versão e a imagem não sai.
+3. Se houve versão, o job `imagem` faz checkout da tag e publica
+   `ghcr.io/pedroct/stur-api:{versão}` (`linux/amd64`) com o `GITHUB_TOKEN`
+   (`packages: write` só nesse job; `contents: write` só no job `release`).
+
+Por isso a `main` não deve ter proteção que bloqueie o push do commit de versão pelo
+`github-actions`. As Actions de terceiros ficam fixadas por SHA de commit, com a versão em
+comentário. Commits em Conventional Commits, descrição em pt-BR.

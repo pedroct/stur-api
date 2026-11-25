@@ -1,15 +1,20 @@
 name: release
 
+# O release só roda depois do CI verde na main (padrão §8): o workflow `ci` termina, e só
+# se foi um push na main com todos os jobs verdes é que a versão e a imagem saem.
 on:
-  push:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
     branches: [main]
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.workflow }}
   cancel-in-progress: false
 
 jobs:
   release:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write # commit de versão, tag e GitHub Release
@@ -20,7 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           fetch-depth: 0 # histórico completo para analisar os commits
+      # A main pode ter andado enquanto o CI rodava: o release avalia só o commit que o CI aprovou
+      - name: Colocar a main no commit que passou no CI
+        run: git reset --hard "$HEAD_SHA"
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
       - id: psr
         uses: python-semantic-release/python-semantic-release@350c48fcb3ffcdfd2e0a235206bc2ecea6b69df0 # v10.5.3
         with:
