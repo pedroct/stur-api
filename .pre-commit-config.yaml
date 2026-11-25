@@ -45,9 +45,10 @@ repos:
         entry: uv run python scripts/verificar_dados_reais.py
         language: system
         types: [text]
+      # semgrep fica fora do ambiente do projeto: ele fixa opentelemetry-api~=1.37 e o fastapi exige >=1.44
       - id: semgrep
         name: semgrep (SAST)
-        entry: uv run semgrep --error --skip-unknown-extensions --config p/security-audit --config p/secrets
+        entry: uvx --from semgrep==1.165.0 semgrep --error --skip-unknown-extensions --config p/security-audit --config p/secrets
         language: system
         pass_filenames: false
         stages: [pre-push]

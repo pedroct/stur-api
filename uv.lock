@@ -755,6 +755,18 @@ wheels = [
 ]
 
 [[package]]
+name = "jproperties"
+version = "2.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/be/27/00abf648c6d573275d409b70196b66d9fb40ef03b8d1baf671ae3774e145/jproperties-2.1.2.tar.gz", hash = "sha256:036fcd52c10a8a1c21e6fa2a1c292c93892e759b76490acc4809213a36ddc329", size = 23860, upload-time = "2024-07-21T20:40:50.29Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/75/6f/55bc5837e9fe7a86a5acb553adec901257d709062bfaef7debd4d8cfee12/jproperties-2.1.2-py2.py3-none-any.whl", hash = "sha256:4108e868353a9f4a12bb86a92df5462d0e18d00119169533972ce473029be79a", size = 17981, upload-time = "2024-07-21T20:40:49.034Z" },
+]
+
+[[package]]
 name = "librt"
 version = "0.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1453,6 +1465,20 @@ wheels = [
 ]
 
 [[package]]
+name = "pysonar"
+version = "1.6.0.4905"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jproperties" },
+    { name = "requests" },
+    { name = "tomli" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d4/d3/703d68d38f1ed56fb44ede9f02ad8d6e1053b420e4120c5622781f0cfcc8/pysonar-1.6.0.4905.tar.gz", hash = "sha256:42fca07135c2a3c285a9ac3621f604fa84a1ea8a62a409cd601db68b02cedd90", size = 30919, upload-time = "2026-05-28T13:11:44.661Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2f/ce/46c7746cfc1a141f1df534ae5d9cc6111c6f4f84a2135b4d4928a9687034/pysonar-1.6.0.4905-py3-none-any.whl", hash = "sha256:1a83a2dc3c11500cc07206277bc60aa97004eefbc6873d29ac523377f06e3e57", size = 46060, upload-time = "2026-05-28T13:11:43.726Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "9.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1812,6 +1838,15 @@ wheels = [
 ]
 
 [[package]]
+name = "six"
+version = "1.17.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
+]
+
+[[package]]
 name = "smmap"
 version = "5.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1872,6 +1907,7 @@ dev = [
     { name = "mypy" },
     { name = "pip-audit" },
     { name = "pre-commit" },
+    { name = "pysonar" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -1899,6 +1935,7 @@ dev = [
     { name = "mypy", specifier = "==2.1.0" },
     { name = "pip-audit", specifier = "==2.10.0" },
     { name = "pre-commit", specifier = "==4.6.0" },
+    { name = "pysonar", specifier = ">=1.6,<1.7" },
     { name = "pytest", specifier = "==9.0.3" },
     { name = "pytest-asyncio", specifier = ">=1.5.0" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
