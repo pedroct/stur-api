@@ -13,27 +13,40 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from stur_api.agi.cliente import ClienteAgi
 from stur_api.config import Configuracao
 from stur_api.erros import ConsultaInvalida, ErroAplicacao, ErroInterno
+from stur_api.registro import MiddlewareRegistro, configurar_registro
 from stur_api.relogio import RelogioSistema
 from stur_api.rotas import parametros, reservas, saude, vendas
 from stur_api.servicos.consultas import ServicoConsulta
 
 PARAMETRO_INVALIDO = "parametro_invalido"
 MENSAGEM_PARAMETRO_INVALIDO = "Um parâmetro da consulta está num formato inválido."
+_ERROS_HTTP = {
+    404: ("rota_inexistente", "Esta rota não existe nesta API."),
+    405: ("metodo_nao_permitido", "Este método não é permitido nesta rota."),
+}
+_ERRO_HTTP_GENERICO = ("erro_http", "A requisição não pôde ser atendida.")
 
 
 def criar_app(servico: ServicoConsulta | None = None) -> FastAPI:
-    """Sem `servico`, o ciclo de vida monta o real a partir do ambiente (`Configuracao`)."""
+    """Sem `servico`, o ciclo de vida monta o real a partir do ambiente (`Configuracao`).
+
+    Aplica `configurar_registro()` aqui (idempotente), para que qualquer porta de entrada
+    (uvicorn, testes) tenha os mesmos logs: uma linha `chave=valor`, httpx em WARNING.
+    """
+    configurar_registro()
 
     @asynccontextmanager
     async def ciclo_de_vida(app: FastAPI) -> AsyncIterator[None]:
         if servico is not None:
             yield
             return
-        config = Configuracao()
+        config = _ler_configuracao()
         relogio = RelogioSistema()
         async with httpx.AsyncClient(timeout=config.agi_tempo_limite_s) as http:
             app.state.servico = ServicoConsulta(config, ClienteAgi(config, http, relogio), relogio)
@@ -42,12 +55,30 @@ def criar_app(servico: ServicoConsulta | None = None) -> FastAPI:
     app = FastAPI(title="stur-api", version="0.1.0", lifespan=ciclo_de_vida)
     if servico is not None:
         app.state.servico = servico
+    app.add_middleware(MiddlewareRegistro)
     app.exception_handler(ErroAplicacao)(_erro_da_aplicacao)
+    app.exception_handler(StarletteHTTPException)(_erro_http)
     app.exception_handler(RequestValidationError)(_parametro_invalido)
     app.exception_handler(Exception)(_erro_inesperado)
     for modulo in (saude, parametros, vendas, reservas):
         app.include_router(modulo.roteador, prefix="/api/v1")
     return app
+
+
+def _ler_configuracao() -> Configuracao:
+    """Configuração do ambiente; se inválida, o erro leva só nomes de campo e tipos de erro.
+
+    O `ValidationError` original traz o valor recebido (senha, URL da AGI): fica de fora do
+    log e do traceback (`from None`).
+    """
+    try:
+        return Configuracao()
+    except ValidationError as erro:
+        problemas = [
+            f"{'.'.join(str(parte) for parte in e['loc'])}: {e['type']}"
+            for e in erro.errors(include_url=False, include_context=False, include_input=False)
+        ]
+        raise RuntimeError(f"Configuração inválida: {', '.join(problemas)}") from None
 
 
 def _resposta(status: int, codigo: str, mensagem: str, detalhe: Any, **extra: Any) -> JSONResponse:
@@ -58,6 +89,14 @@ def _resposta(status: int, codigo: str, mensagem: str, detalhe: Any, **extra: An
 def _erro_da_aplicacao(_pedido: Request, erro: ErroAplicacao) -> JSONResponse:
     extra = {"campo": erro.campo} if isinstance(erro, ConsultaInvalida) else {}
     return _resposta(erro.status_http, erro.codigo, erro.mensagem, erro.detalhe, **extra)
+
+
+def _erro_http(_pedido: Request, erro: StarletteHTTPException) -> JSONResponse:
+    """404, 405 e demais erros HTTP no envelope; nunca o `detail` original."""
+    codigo, mensagem = _ERROS_HTTP.get(erro.status_code, _ERRO_HTTP_GENERICO)
+    resposta = _resposta(erro.status_code, codigo, mensagem, None)
+    resposta.headers.update(erro.headers or {})
+    return resposta
 
 
 def _parametro_invalido(_pedido: Request, erro: RequestValidationError) -> JSONResponse:

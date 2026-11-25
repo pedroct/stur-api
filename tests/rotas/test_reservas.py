@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from decimal import Decimal
 from typing import Any
 
@@ -407,8 +408,47 @@ def test_venda_com_tipo_errado_e_502(cliente_http: TestClient, agi: AgiFalsa) ->
     agi.vendas = [fabrica.venda(), fabrica.venda(idreserva=1002, totalCliente="mil e cinquenta")]
     r = cliente_http.get(VENDA.format(1001))
     assert r.status_code == 502
-    assert r.json()["detalhe"] == ["totalCliente: decimal_parsing"]
+    assert r.json()["detalhe"] == ["venda 1002: totalCliente: decimal_parsing"]
     assert "mil e cinquenta" not in r.text
     cru = cliente_http.get(VENDA.format(1002) + "/dado-cru")  # o dado cru mostra como veio
     assert cru.status_code == 200
     assert '"totalCliente": "mil e cinquenta"' in cru.text
+
+
+def test_reserva_com_venda_invalida_aponta_a_venda(cliente_http: TestClient, agi: AgiFalsa) -> None:
+    agi.vendas = [fabrica.venda(), fabrica.venda(idreserva=1002, totalCliente="mil e cinquenta")]
+    r = cliente_http.get("/api/v1/reservas/90000001")
+    assert r.status_code == 502
+    assert r.json()["detalhe"] == ["venda 1002: totalCliente: decimal_parsing"]
+    assert "mil e cinquenta" not in r.text
+
+
+@pytest.mark.parametrize(
+    ("falha", "classe"),
+    [(httpx.ReadTimeout("x"), "ApiSturSemResposta"), (httpx.DecodingError("x"), "DecodingError")],
+    ids=["traduzida", "httpx_cru"],
+)
+def test_busca_por_id_que_falha_loga_so_idreserva_e_classe(
+    cliente_http: TestClient,
+    agi: AgiFalsa,
+    caplog: pytest.LogCaptureFixture,
+    falha: Exception,
+    classe: str,
+) -> None:
+    agi.vendas = [fabrica.venda(idreserva=1001, reembolsoVinculado=[_reembolso(1005)])]
+    padrao = agi.reservas.side_effect
+
+    def responder(pedido: httpx.Request) -> httpx.Response:
+        if "Id" not in json.loads(pedido.content):
+            resposta: httpx.Response = padrao(pedido)
+            return resposta
+        raise falha
+
+    agi.reservas.side_effect = responder
+    caplog.set_level(logging.DEBUG)
+    assert cliente_http.get(VENDA.format(1001)).status_code == 200
+    avisos = [r for r in caplog.records if r.levelno == logging.WARNING]
+    (aviso,) = avisos
+    assert aviso.name == "servico.consultas"
+    assert aviso.getMessage() == f"busca_por_id_falhou idreserva=1005 erro={classe}"
+    assert aviso.exc_info is None

@@ -4,6 +4,7 @@ Nada aqui grava em log os textos de filtro (cliente, fornecedor, emissor) nem as
 """
 
 import asyncio
+import logging
 from collections.abc import Iterable
 from dataclasses import asdict
 from datetime import date
@@ -61,10 +62,17 @@ from stur_api.dominio.resultado import (
     vendas_no_resultado,
 )
 from stur_api.dominio.textos import normalizar
-from stur_api.erros import ApiSturAcessoRecusado, ErroAplicacao, VendaNaoEncontrada
+from stur_api.erros import (
+    ApiSturAcessoRecusado,
+    ApiSturRespostaInvalida,
+    ErroAplicacao,
+    VendaNaoEncontrada,
+)
 from stur_api.relogio import Relogio
 from stur_api.servicos.cache import CacheResultados
 from stur_api.servicos.data_copia import DataDaCopia
+
+_log = logging.getLogger("servico.consultas")
 
 BUSCAS_POR_ID_SIMULTANEAS = 4  # reembolsos de outro número: chamadas à AGI ao mesmo tempo
 
@@ -129,7 +137,7 @@ class ServicoConsulta:
         """Todas as vendas do número numa chamada à AGI. Número sem vendas: a lista vazia."""
         consultado_em = self._relogio.agora()
         hoje = consultado_em.date()
-        vendas = [validar_venda(v) for v in await self._vendas_do_numero(numero, hoje)]
+        vendas = _validar_vendas(await self._vendas_do_numero(numero, hoje))
         return ReservaConsultada(
             numero=numero,
             consultado_em=consultado_em,
@@ -149,7 +157,7 @@ class ServicoConsulta:
         consultado_em = self._relogio.agora()
         hoje = consultado_em.date()
         crus = await self._vendas_do_numero(numero, hoje)
-        vendas = [validar_venda(v) for v in crus]  # o dado cru fica à parte, como a AGI mandou
+        vendas = _validar_vendas(crus)  # o dado cru fica à parte, como a AGI mandou
         indice = next((i for i, v in enumerate(vendas) if v.idreserva == idreserva), None)
         if indice is None:
             raise VendaNaoEncontrada()
@@ -233,12 +241,33 @@ class ServicoConsulta:
             async with limite:
                 try:
                     achadas = [validar_venda(v) for v in await self._cliente.buscar_vendas(filtro)]
-                except (ErroAplicacao, httpx.HTTPError):
+                except (ErroAplicacao, httpx.HTTPError) as erro:
+                    # só o id e a classe do erro: a mensagem pode carregar dado da AGI
+                    _log.warning(
+                        "busca_por_id_falhou idreserva=%d erro=%s", id_venda, type(erro).__name__
+                    )
                     return None  # o reembolso fica sem a venda; a venda aberta não cai
             return next((v for v in achadas if v.idreserva == id_venda), None)
 
         encontradas = await asyncio.gather(*(buscar(id_venda) for id_venda in ids))
         return dict(zip(ids, encontradas, strict=True))
+
+
+def _validar_vendas(crus: list[dict[str, Any]]) -> list[VendaAgi]:
+    """Valida as vendas do número; a inválida (a pedida ou uma irmã) é apontada no `detalhe`.
+
+    Cada item ganha o prefixo `venda <idreserva>: `, sem o valor recebido.
+    """
+    vendas: list[VendaAgi] = []
+    for cru in crus:
+        try:
+            vendas.append(validar_venda(cru))
+        except ApiSturRespostaInvalida as erro:
+            idreserva = cru.get("idreserva")
+            quem = f"venda {idreserva}" if isinstance(idreserva, int) else "venda sem idreserva"
+            detalhe = [f"{quem}: {item}" for item in erro.detalhe]
+            raise ApiSturRespostaInvalida(detalhe=detalhe) from None
+    return vendas
 
 
 def _consulta_ecoada(c: ConsultaVendas) -> ConsultaEcoada:
