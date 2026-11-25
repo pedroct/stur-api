@@ -18,6 +18,9 @@ class CacheResultados:
         self._maximo = maximo
         self._itens: OrderedDict[ConsultaVendas, tuple[datetime, ResultadoConsulta]] = OrderedDict()
 
+    def __len__(self) -> int:
+        return len(self._itens)
+
     def obter(self, chave: ConsultaVendas) -> ResultadoConsulta | None:
         item = self._itens.get(chave)
         if item is None:
@@ -29,7 +32,15 @@ class CacheResultados:
         return valor
 
     def guardar(self, chave: ConsultaVendas, valor: ResultadoConsulta) -> None:
+        agora = self._relogio.agora()
         self._itens.pop(chave, None)  # guardar de novo conta como o mais novo
-        self._itens[chave] = (self._relogio.agora(), valor)
+        self._itens[chave] = (agora, valor)
+        # A ordem de inserção é a ordem do tempo (guardar sempre reinsere no fim): os vencidos
+        # ficam na frente e saem sem precisar de leitura.
+        while self._itens:
+            guardado_em, _ = next(iter(self._itens.values()))
+            if agora - guardado_em < self._validade:
+                break
+            self._itens.popitem(last=False)
         while len(self._itens) > self._maximo:
             self._itens.popitem(last=False)

@@ -16,7 +16,7 @@ from stur_api.erros import (
     ApiSturSemResposta,
 )
 from tests import fabrica
-from tests.agi_falsa import AgiFalsa
+from tests.agi_falsa import AgiFalsa, jwt_falso
 from tests.conftest import RelogioFixo
 
 FILTRO_NUMERO = FiltroAgi("EMISSAO", date(2020, 1, 1), date(2027, 12, 31), reserva=90000001)
@@ -94,6 +94,27 @@ async def test_falha_de_conexao_no_login_e_sem_resposta(cliente: ClienteAgi, agi
     agi.login.side_effect = httpx.ConnectError("sem rede")
     with pytest.raises(ApiSturSemResposta):
         await cliente.buscar_vendas(FILTRO_NUMERO)
+
+
+@pytest.mark.parametrize("erro_httpx", [httpx.DecodingError, httpx.TooManyRedirects])
+async def test_erro_do_httpx_nao_traduzido_e_resposta_invalida(
+    cliente: ClienteAgi, agi: AgiFalsa, erro_httpx: type[httpx.HTTPError]
+) -> None:
+    agi.reservas.side_effect = erro_httpx("x")
+    with pytest.raises(ApiSturRespostaInvalida) as erro:
+        await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert erro.value.detalhe == {"erro": erro_httpx.__name__}
+    assert erro.value.__cause__ is None
+    assert erro.value.__suppress_context__
+
+
+async def test_erro_do_httpx_nao_traduzido_no_login_e_resposta_invalida(
+    cliente: ClienteAgi, agi: AgiFalsa
+) -> None:
+    agi.login.side_effect = httpx.DecodingError("x")
+    with pytest.raises(ApiSturRespostaInvalida) as erro:
+        await cliente.verificar_acesso()
+    assert erro.value.detalhe == {"erro": "DecodingError"}
 
 
 async def test_500_e_sem_resposta(cliente: ClienteAgi, agi: AgiFalsa) -> None:
@@ -230,6 +251,21 @@ async def test_token_sem_exp_vale_55_minutos(
 ) -> None:
     agi.login.side_effect = None
     agi.login.return_value = httpx.Response(200, json={"token": "sem-exp"})
+    await cliente.buscar_vendas(FILTRO_NUMERO)
+    relogio.avancar(55 * 60 - 120)
+    await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert agi.login.call_count == 1
+    relogio.avancar(90)  # faltam 30 s
+    await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert agi.login.call_count == 2
+
+
+@pytest.mark.parametrize("exp", [1e30, -1e30])
+async def test_exp_fora_do_alcance_do_datetime_cai_na_regra_de_55_minutos(
+    cliente: ClienteAgi, agi: AgiFalsa, relogio: RelogioFixo, exp: float
+) -> None:
+    agi.login.side_effect = None
+    agi.login.return_value = httpx.Response(200, json={"token": jwt_falso(exp)})
     await cliente.buscar_vendas(FILTRO_NUMERO)
     relogio.avancar(55 * 60 - 120)
     await cliente.buscar_vendas(FILTRO_NUMERO)

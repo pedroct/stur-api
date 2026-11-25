@@ -1,10 +1,11 @@
 import json
+from typing import Any
 
 import httpx
 import pytest
 
 from stur_api.agi.campos import validar_venda
-from stur_api.agi.cliente import ClienteAgi
+from stur_api.agi.cliente import ClienteAgi, FiltroAgi
 from stur_api.agi.modelos import VendaAgi
 from stur_api.erros import ApiSturRespostaInvalida
 from stur_api.servicos.data_copia import DataDaCopia
@@ -85,6 +86,33 @@ async def test_obter_com_falha_da_agi_devolve_none(
     cliente: ClienteAgi, agi: AgiFalsa, relogio: RelogioFixo
 ) -> None:
     agi.reservas.side_effect = httpx.ReadTimeout("x")
+    assert await DataDaCopia(cliente, relogio, 300).obter() is None
+
+
+async def test_obter_com_erro_do_httpx_nao_traduzido_devolve_none_e_guarda_a_falha(
+    cliente: ClienteAgi,
+    agi: AgiFalsa,
+    relogio: RelogioFixo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    chamadas: list[int] = []
+
+    async def _estoura(_filtro: FiltroAgi) -> list[dict[str, Any]]:
+        chamadas.append(1)
+        raise httpx.DecodingError("x")
+
+    monkeypatch.setattr(cliente, "buscar_vendas", _estoura)
+    data_copia = DataDaCopia(cliente, relogio, 300)
+    assert await data_copia.obter() is None
+    relogio.avancar(59)
+    assert await data_copia.obter() is None
+    assert len(chamadas) == 1  # a falha ficou guardada por 60 s
+
+
+async def test_obter_com_erro_do_httpx_traduzido_pelo_cliente_devolve_none(
+    cliente: ClienteAgi, agi: AgiFalsa, relogio: RelogioFixo
+) -> None:
+    agi.reservas.side_effect = httpx.TooManyRedirects("x")
     assert await DataDaCopia(cliente, relogio, 300).obter() is None
 
 

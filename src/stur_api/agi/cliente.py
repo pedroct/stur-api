@@ -83,7 +83,8 @@ def _expiracao_do_jwt(token: str) -> datetime | None:
         if isinstance(exp, bool) or not isinstance(exp, int | float):
             return None
         return datetime.fromtimestamp(exp, tz=ZoneInfo("UTC"))
-    except (ValueError, KeyError, TypeError, AttributeError):
+    except (ValueError, KeyError, TypeError, AttributeError, OverflowError, OSError):
+        # `exp` fora do alcance do datetime (1e30): OverflowError/OSError; vale a regra de 55 min
         return None
 
 
@@ -215,6 +216,10 @@ class ClienteAgi:
             raise ApiSturSemResposta(limite, detalhe={"motivo": "tempo_esgotado"}) from None
         except httpx.TransportError as erro:
             raise ApiSturSemResposta(limite, detalhe={"motivo": type(erro).__name__}) from None
+        except httpx.HTTPError as erro:
+            # o que sobra do httpx (corpo que não decodifica, redirecionamentos demais...): a AGI
+            # respondeu algo que não serve. O erro original pode trazer a URL, que não vai ao log.
+            raise ApiSturRespostaInvalida(detalhe={"erro": type(erro).__name__}) from None
 
     def _exigir_sucesso(self, resposta: httpx.Response) -> None:
         if resposta.status_code >= 500:

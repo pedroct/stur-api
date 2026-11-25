@@ -425,8 +425,12 @@ def test_reserva_com_venda_invalida_aponta_a_venda(cliente_http: TestClient, agi
 
 @pytest.mark.parametrize(
     ("falha", "classe"),
-    [(httpx.ReadTimeout("x"), "ApiSturSemResposta"), (httpx.DecodingError("x"), "DecodingError")],
-    ids=["traduzida", "httpx_cru"],
+    [
+        (httpx.ReadTimeout("x"), "ApiSturSemResposta"),
+        # o cliente traduz o httpx que sobrava: já não chega cru à busca por id
+        (httpx.DecodingError("x"), "ApiSturRespostaInvalida"),
+    ],
+    ids=["traduzida", "httpx_traduzido_pelo_cliente"],
 )
 def test_busca_por_id_que_falha_loga_so_idreserva_e_classe(
     cliente_http: TestClient,

@@ -5,6 +5,8 @@ A API serve uma cópia do Stur; todas as vendas trazem o instante da cópia ness
 
 from datetime import datetime, timedelta
 
+import httpx
+
 from stur_api.agi.campos import validar_venda
 from stur_api.agi.cliente import ClienteAgi, FiltroAgi, janela_larga
 from stur_api.agi.modelos import VendaAgi
@@ -66,6 +68,6 @@ class DataDaCopia:
         try:
             vendas = [validar_venda(v) for v in await self._cliente.buscar_vendas(filtro)]
             return self.registrar(vendas)
-        except ErroAplicacao:
+        except (ErroAplicacao, httpx.HTTPError):  # o cliente já traduz o httpx; por garantia
             self._falhou_em = self._relogio.agora()  # depois da espera, não antes
             return None  # sem a data, a tela só não mostra "Dados do Stur até …"

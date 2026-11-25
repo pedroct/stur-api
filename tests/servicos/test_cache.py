@@ -109,3 +109,26 @@ def test_guardar_de_novo_conta_como_o_mais_novo(relogio: RelogioFixo) -> None:
     assert cache.obter(b) is None
     assert cache.obter(a) is not None
     assert cache.obter(c) is not None
+
+
+def test_guardar_descarta_os_vencidos_sem_que_ninguem_leia(relogio: RelogioFixo) -> None:
+    cache = CacheResultados(300, relogio, maximo=10)
+    cache.guardar(ConsultaVendas(90000001), _resultado(relogio))
+    relogio.avancar(100)
+    cache.guardar(ConsultaVendas(90000002), _resultado(relogio))
+    relogio.avancar(200)  # o primeiro tem 300 s (vencido); o segundo, 200 s
+    cache.guardar(ConsultaVendas(90000003), _resultado(relogio))
+    assert len(cache) == 2
+    assert cache.obter(ConsultaVendas(90000002)) is not None
+
+
+def test_o_maximo_vale_depois_de_descartar_os_vencidos(relogio: RelogioFixo) -> None:
+    cache = CacheResultados(300, relogio, maximo=2)
+    cache.guardar(ConsultaVendas(90000001), _resultado(relogio))
+    relogio.avancar(300)
+    cache.guardar(ConsultaVendas(90000002), _resultado(relogio))
+    cache.guardar(ConsultaVendas(90000003), _resultado(relogio))
+    cache.guardar(ConsultaVendas(90000004), _resultado(relogio))
+    assert len(cache) == 2
+    assert cache.obter(ConsultaVendas(90000002)) is None
+    assert cache.obter(ConsultaVendas(90000004)) is not None
