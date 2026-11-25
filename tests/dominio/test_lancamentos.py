@@ -144,8 +144,11 @@ def test_credito_aparece_negativo_e_abate_o_total() -> None:
         )
     )
     p = situacao_dos_pagamentos(v, HOJE)
-    assert p[1].valor_exibido == D("-13620.74") and p[1].eh_credito and p[1].situacao == "em_aberto"
-    assert not p[0].eh_credito and p[0].valor_exibido == D("139498.48")
+    assert p[1].valor_exibido == D("-13620.74")
+    assert p[1].eh_credito
+    assert p[1].situacao == "em_aberto"
+    assert not p[0].eh_credito
+    assert p[0].valor_exibido == D("139498.48")
     assert total_dos_pagamentos(v) == D("125877.74")
 
 

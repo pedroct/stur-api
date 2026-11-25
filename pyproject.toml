@@ -58,6 +58,7 @@ strict = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 plugins = ["pydantic.mypy"]
+mypy_path = "scripts"  # o pytest importa os scripts (pythonpath); o mypy precisa achá-los
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -71,6 +72,10 @@ filterwarnings = [
 
 [tool.coverage.run]
 relative_files = true   # o SonarQube casa os arquivos do coverage.xml por caminho relativo
+branch = true           # mede os ramos de cada `if`, não só as linhas
+
+[tool.coverage.report]
+exclude_also = ['if __name__ == "__main__":']
 
 [tool.bandit]
 exclude_dirs = ["tests"]

@@ -23,11 +23,9 @@ def test_consulta_por_periodo(cliente_http: TestClient, agi: AgiFalsa) -> None:
         "/api/v1/vendas", params={"tipoData": "emissao", "de": "2026-11-01", "ate": "2026-11-17"}
     ).json()
     assert [v["idreserva"] for v in r["vendas"]][:2] == [1002, 1001]
-    assert (
-        r["resumo"]["quantidade"] == 2
-        and r["resumo"]["incentivos"]["quantidade"] == 1
-        and r["resumo"]["canceladas"] == 1
-    )
+    assert r["resumo"]["quantidade"] == 2
+    assert r["resumo"]["incentivos"]["quantidade"] == 1
+    assert r["resumo"]["canceladas"] == 1
     assert r["vendas"][0]["totalCliente"] == "1050.01"  # Decimal como texto
 
 
@@ -35,9 +33,9 @@ def test_periodo_longo_responde_422_sem_chamar_a_agi(
     cliente_http: TestClient, agi: AgiFalsa
 ) -> None:
     r = cliente_http.get("/api/v1/vendas", params={"de": "2026-10-01", "ate": "2026-11-01"})
-    assert (
-        r.status_code == 422 and r.json()["codigo"] == "periodo_longo" and r.json()["campo"] == "de"
-    )
+    assert r.status_code == 422
+    assert r.json()["codigo"] == "periodo_longo"
+    assert r.json()["campo"] == "de"
     assert agi.reservas.call_count == 0
 
 
@@ -57,11 +55,9 @@ def test_periodo_depois_da_copia_volta_vazio(cliente_http: TestClient, agi: AgiF
     agi.vendas = []
     agi.ultima_copia = "2026-11-18 09:30:00"
     r = cliente_http.get("/api/v1/vendas", params={"de": "2026-11-20", "ate": "2026-11-24"}).json()
-    assert (
-        r["vendas"] == []
-        and r["periodoPassaDaCopia"] is True
-        and r["dadosDoSturAte"] == "2026-11-18T09:30:00"
-    )
+    assert r["vendas"] == []
+    assert r["periodoPassaDaCopia"] is True
+    assert r["dadosDoSturAte"] == "2026-11-18T09:30:00"
 
 
 def test_periodo_ate_o_dia_da_copia_nao_passa_dela(cliente_http: TestClient, agi: AgiFalsa) -> None:
@@ -157,11 +153,9 @@ def test_fee_sem_a_vinculada_no_resultado(cliente_http: TestClient, agi: AgiFals
 def test_agi_sem_resposta_e_504_com_a_mensagem(cliente_http: TestClient, agi: AgiFalsa) -> None:
     agi.reservas.side_effect = httpx.ReadTimeout("x")
     r = cliente_http.get("/api/v1/vendas", params={"reserva": "90000001"})
-    assert (
-        r.status_code == 504
-        and r.json()["codigo"] == "api_stur_sem_resposta"
-        and "30 segundos" in r.json()["mensagem"]
-    )
+    assert r.status_code == 504
+    assert r.json()["codigo"] == "api_stur_sem_resposta"
+    assert "30 segundos" in r.json()["mensagem"]
 
 
 def test_venda_com_tipo_errado_e_502_sem_o_valor(cliente_http: TestClient, agi: AgiFalsa) -> None:

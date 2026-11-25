@@ -12,7 +12,8 @@ def test_normalizar_iguala_a_grafia_da_agi_e_a_do_plano() -> None:
 
 
 def test_contem_ignora_acento_e_caixa() -> None:
-    assert contem("EXPRESSO AÇAÍ LTDA", "acai") and not contem(None, "x")
+    assert contem("EXPRESSO AÇAÍ LTDA", "acai")
+    assert not contem(None, "x")
 
 
 def test_contem_busca_em_qualquer_parte_e_colapsa_espacos() -> None:

@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import logging
 from datetime import date
@@ -210,8 +211,10 @@ async def test_corpo_leva_id_e_status_quando_pedidos(cliente: ClienteAgi, agi: A
     )
     await cliente.buscar_vendas(filtro)
     corpo = _corpo(agi.reservas.calls.last.request)
-    assert corpo["TipoData"] == "ALTERACAO" and corpo["Id"] == 1001
-    assert corpo["Status"] == "FECHADA" and "Reserva" not in corpo
+    assert corpo["TipoData"] == "ALTERACAO"
+    assert corpo["Id"] == 1001
+    assert corpo["Status"] == "FECHADA"
+    assert "Reserva" not in corpo
 
 
 async def test_manda_o_token_no_cabecalho(cliente: ClienteAgi, agi: AgiFalsa) -> None:
@@ -278,12 +281,14 @@ async def test_exp_fora_do_alcance_do_datetime_cai_na_regra_de_55_minutos(
 async def test_valores_chegam_como_decimal(cliente: ClienteAgi, agi: AgiFalsa) -> None:
     vendas = await cliente.buscar_vendas(FILTRO_NUMERO)
     total = vendas[0]["totalCliente"]
-    assert isinstance(total, Decimal) and total == Decimal("1050.01")
+    assert isinstance(total, Decimal)
+    assert total == Decimal("1050.01")
 
 
 async def test_verificar_acesso_faz_login(cliente: ClienteAgi, agi: AgiFalsa) -> None:
     await cliente.verificar_acesso()
-    assert agi.login.call_count == 1 and agi.reservas.call_count == 0
+    assert agi.login.call_count == 1
+    assert agi.reservas.call_count == 0
 
 
 async def test_verificar_acesso_recusado(cliente: ClienteAgi, agi: AgiFalsa) -> None:
@@ -298,7 +303,8 @@ async def test_log_nao_tem_corpo(
 ) -> None:
     caplog.set_level(logging.INFO)
     await cliente.buscar_vendas(FILTRO_NUMERO)
-    assert "CLIENTE EXEMPLO" not in caplog.text and "90000001" in caplog.text
+    assert "CLIENTE EXEMPLO" not in caplog.text
+    assert "90000001" in caplog.text
 
 
 async def test_log_proprio_nao_tem_url_nem_credenciais_nem_token(
@@ -321,3 +327,80 @@ def test_janela_larga_vai_do_inicio_configurado_ao_fim_do_ano_seguinte(
     config: Configuracao,
 ) -> None:
     assert janela_larga(config, date(2026, 11, 25)) == (date(2020, 1, 1), date(2027, 12, 31))
+
+
+# --- casos de borda do login e das respostas de erro ---
+
+
+def _jwt_com_exp(exp: object) -> str:
+    """JWT cujo `exp` não é número (o cliente deve ignorá-lo)."""
+
+    def parte(dados: dict[str, object]) -> str:
+        return base64.urlsafe_b64encode(json.dumps(dados).encode()).rstrip(b"=").decode()
+
+    return f"{parte({'alg': 'none'})}.{parte({'exp': exp})}.assinatura"
+
+
+async def test_aceita_o_token_como_string_json(cliente: ClienteAgi, agi: AgiFalsa) -> None:
+    agi.login.side_effect = None
+    agi.login.return_value = httpx.Response(200, text='"abc.def.ghi"')
+    await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert agi.reservas.calls.last.request.headers["Authorization"] == "Bearer abc.def.ghi"
+
+
+@pytest.mark.parametrize("corpo", ['["abc.def.ghi"]', "12345", '""'])
+async def test_login_com_json_que_nao_traz_token_e_resposta_invalida(
+    cliente: ClienteAgi, agi: AgiFalsa, corpo: str
+) -> None:
+    agi.login.side_effect = None
+    agi.login.return_value = httpx.Response(200, text=corpo)
+    with pytest.raises(ApiSturRespostaInvalida):
+        await cliente.buscar_vendas(FILTRO_NUMERO)
+
+
+@pytest.mark.parametrize("exp", ["amanhã", True, None, [1]])
+async def test_exp_que_nao_e_numero_cai_na_regra_de_55_minutos(
+    cliente: ClienteAgi, agi: AgiFalsa, relogio: RelogioFixo, exp: object
+) -> None:
+    agi.login.side_effect = None
+    agi.login.return_value = httpx.Response(200, json={"token": _jwt_com_exp(exp)})
+    await cliente.buscar_vendas(FILTRO_NUMERO)
+    relogio.avancar(55 * 60 - 120)
+    await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert agi.login.call_count == 1
+    relogio.avancar(90)  # faltam 30 s
+    await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert agi.login.call_count == 2
+
+
+@pytest.mark.parametrize("status", [302, 404, 409])
+async def test_outro_status_na_busca_e_resposta_invalida(
+    cliente: ClienteAgi, agi: AgiFalsa, status: int
+) -> None:
+    agi.reservas.return_value = httpx.Response(status)
+    with pytest.raises(ApiSturRespostaInvalida) as erro:
+        await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert erro.value.detalhe == {"status": status}
+
+
+async def test_outro_status_no_login_e_resposta_invalida(
+    cliente: ClienteAgi, agi: AgiFalsa
+) -> None:
+    agi.login.side_effect = None
+    agi.login.return_value = httpx.Response(404)
+    with pytest.raises(ApiSturRespostaInvalida) as erro:
+        await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert erro.value.detalhe == {"status": 404}
+
+
+@pytest.mark.parametrize(
+    "resposta",
+    [httpx.Response(400, text="isto não é JSON"), httpx.Response(400, json=["Erro"])],
+)
+async def test_400_sem_objeto_json_nao_traz_o_corpo(
+    cliente: ClienteAgi, agi: AgiFalsa, resposta: httpx.Response
+) -> None:
+    agi.reservas.return_value = resposta
+    with pytest.raises(ApiSturRespostaInvalida) as erro:
+        await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert erro.value.detalhe == {"erro": None, "detalhes": None}

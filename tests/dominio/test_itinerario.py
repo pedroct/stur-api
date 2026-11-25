@@ -33,7 +33,8 @@ def test_espera_no_mesmo_aeroporto_com_mesmo_localizador() -> None:
     ]
     it = montar_itinerario(validar_trechos(t), 24)
     assert it is not None
-    assert it.forma == "com_horario" and it.trajetos == [Trajeto([0, 1], [Espera(0, 190, "GIG")])]
+    assert it.forma == "com_horario"
+    assert it.trajetos == [Trajeto([0, 1], [Espera(0, 190, "GIG")])]
     assert it.estadias == []
 
 
@@ -186,6 +187,34 @@ def test_ordena_por_segmento() -> None:
 
 def test_data_em_formato_desconhecido_e_erro_com_o_campo() -> None:
     t = [fabrica.trecho(1, "FOR", "GIG", "10/06/2026", None)]
+    trechos = validar_trechos(t)
     with pytest.raises(ApiSturRespostaInvalida) as erro:
-        montar_itinerario(validar_trechos(t), 24)
+        montar_itinerario(trechos, 24)
     assert erro.value.detalhe == ["trechos[].dtPartida: formato_de_data_invalido"]
+
+
+def test_partida_antes_da_chegada_nao_vira_espera() -> None:
+    # mesmo aeroporto e localizador, mas o segundo trecho sai antes do primeiro chegar
+    t = [
+        fabrica.trecho(
+            1, "FOR", "GIG", "2026-06-10 06:00:00", "2026-06-10 09:20:00", localizador="ABC123"
+        ),
+        fabrica.trecho(
+            2, "GIG", "LIS", "2026-06-10 09:00:00", "2026-06-11 01:00:00", localizador="ABC123"
+        ),
+    ]
+    it = montar_itinerario(validar_trechos(t), 24)
+    assert it is not None
+    assert it.trajetos == [Trajeto([0, 1], [])]
+
+
+def test_trajeto_seguinte_com_data_anterior_nao_vira_estadia() -> None:
+    # aeroportos diferentes separam os trajetos; a partida do segundo é de um dia antes
+    t = [
+        fabrica.trecho(1, "FOR", "GIG", "2026-06-10 06:00:00", "2026-06-10 09:20:00"),
+        fabrica.trecho(2, "LIS", "FCO", "2026-06-09 10:00:00", "2026-06-09 14:00:00"),
+    ]
+    it = montar_itinerario(validar_trechos(t), 24)
+    assert it is not None
+    assert it.trajetos == [Trajeto([0], []), Trajeto([1], [])]
+    assert it.estadias == []

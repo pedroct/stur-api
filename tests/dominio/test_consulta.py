@@ -60,8 +60,9 @@ def test_mensagem_do_periodo_longo_usa_o_parametro(config: Configuracao) -> None
 
 def test_31_dias_passa_e_32_nao(config: Configuracao) -> None:
     validar_consulta(ConsultaVendas(None, de=date(2026, 10, 1), ate=date(2026, 10, 31)), config)
+    consulta = ConsultaVendas(None, de=date(2026, 10, 1), ate=date(2026, 11, 1))
     with pytest.raises(ConsultaInvalida) as erro:
-        validar_consulta(ConsultaVendas(None, de=date(2026, 10, 1), ate=date(2026, 11, 1)), config)
+        validar_consulta(consulta, config)
     assert erro.value.codigo == "periodo_longo"
 
 
@@ -71,13 +72,13 @@ def test_com_numero_o_periodo_pode_ser_longo(config: Configuracao) -> None:
 
 
 def test_com_numero_ainda_valida_periodo_incompleto_e_invertido(config: Configuracao) -> None:
+    incompleta = ConsultaVendas(90000001, de=date(2026, 11, 1))
     with pytest.raises(ConsultaInvalida) as erro:
-        validar_consulta(ConsultaVendas(90000001, de=date(2026, 11, 1)), config)
+        validar_consulta(incompleta, config)
     assert erro.value.codigo == "periodo_incompleto"
+    invertida = ConsultaVendas(90000001, de=date(2026, 11, 2), ate=date(2026, 11, 1))
     with pytest.raises(ConsultaInvalida) as erro:
-        validar_consulta(
-            ConsultaVendas(90000001, de=date(2026, 11, 2), ate=date(2026, 11, 1)), config
-        )
+        validar_consulta(invertida, config)
     assert erro.value.codigo == "periodo_invertido"
 
 
@@ -88,7 +89,8 @@ def test_consulta_e_hashavel() -> None:
     b = ConsultaVendas(
         None, de=date(2026, 11, 1), ate=date(2026, 11, 2), situacoes=frozenset({"fechada"})
     )
-    assert hash(a) == hash(b) and a == b
+    assert hash(a) == hash(b)
+    assert a == b
 
 
 def test_so_numero_usa_a_janela_larga(config: Configuracao) -> None:
@@ -125,10 +127,10 @@ def test_periodo_usa_o_tipo_de_data_em_maiusculas(config: Configuracao) -> None:
 
 def test_status_vai_a_agi_so_com_uma_situacao(config: Configuracao) -> None:
     hoje = date(2026, 11, 25)
-    base = {"de": date(2026, 11, 1), "ate": date(2026, 11, 5)}
-    uma = ConsultaVendas(None, situacoes=frozenset({"cancelada"}), **base)
-    duas = ConsultaVendas(None, situacoes=frozenset({"cancelada", "fechada"}), **base)
-    nenhuma = ConsultaVendas(None, **base)
+    de, ate = date(2026, 11, 1), date(2026, 11, 5)
+    uma = ConsultaVendas(None, situacoes=frozenset({"cancelada"}), de=de, ate=ate)
+    duas = ConsultaVendas(None, situacoes=frozenset({"cancelada", "fechada"}), de=de, ate=ate)
+    nenhuma = ConsultaVendas(None, de=de, ate=ate)
     assert filtro_agi(uma, config, hoje).status == "CANCELADA"
     assert filtro_agi(duas, config, hoje).status is None
     assert filtro_agi(nenhuma, config, hoje).status is None

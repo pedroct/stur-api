@@ -1,7 +1,11 @@
+from pathlib import Path
+
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from stur_api.main import criar_app
+from stur_api.servicos.consultas import ServicoConsulta
 from tests.agi_falsa import AgiFalsa
 
 
@@ -43,3 +47,16 @@ def test_saude_stur_com_erro_do_httpx_nao_traduzido(
     r = cliente_http.get("/api/v1/saude/stur")
     assert r.status_code == 200
     assert r.json() == {"apiStur": "sem_resposta"}
+
+
+def test_ciclo_de_vida_monta_o_servico_real_a_partir_do_ambiente(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)  # sem `.env` por perto
+    monkeypatch.setenv("STUR_API_URL", "https://agi.exemplo.invalid")
+    monkeypatch.setenv("STUR_API_USUARIO", "usuario-de-teste")
+    monkeypatch.setenv("STUR_API_SENHA", "senha-de-teste")
+    app = criar_app()
+    with TestClient(app) as http:
+        assert isinstance(app.state.servico, ServicoConsulta)
+        assert http.get("/api/v1/saude").status_code == 200

@@ -39,8 +39,9 @@ async def test_registrar_data_em_formato_desconhecido_e_resposta_invalida(
     cliente: ClienteAgi, relogio: RelogioFixo
 ) -> None:
     data_copia = DataDaCopia(cliente, relogio, 300)
+    vendas = _vendas("18/11/2026 09:30")
     with pytest.raises(ApiSturRespostaInvalida) as erro:
-        data_copia.registrar(_vendas("18/11/2026 09:30"))
+        data_copia.registrar(vendas)
     assert erro.value.detalhe == ["dtalteracaovinculado: formato_de_data_invalido"]
 
 

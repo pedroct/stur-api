@@ -72,9 +72,9 @@ def situacao_dos_pagamentos(venda: VendaAgi, hoje: date) -> list[LancamentoCalcu
     for indice, pagamento in enumerate(venda.pagamentos or []):
         valor = pagamento.valor or ZERO
         eh_credito = pagamento.forma == FORMA_CREDITO
-        situacao: SituacaoLancamento = (
-            "previsto" if reservada else (do_credito if eh_credito else a_pagar)
-        )
+        situacao: SituacaoLancamento = do_credito if eh_credito else a_pagar
+        if reservada:
+            situacao = "previsto"
         calculados.append(
             LancamentoCalculado(
                 indice=indice,

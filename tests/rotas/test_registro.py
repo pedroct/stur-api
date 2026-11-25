@@ -1,8 +1,10 @@
 """Logs de requisição: uma linha por pedido, sem dado pessoal (Review Focus 5, R9, R18b)."""
 
 import logging
+import sys
 import traceback
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
@@ -10,7 +12,7 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel, ValidationError
 
 from stur_api.main import criar_app
-from stur_api.registro import configurar_registro
+from stur_api.registro import _rota, _SaidaPadrao, configurar_registro
 from stur_api.servicos.consultas import ServicoConsulta
 from tests import fabrica
 from tests.agi_falsa import AgiFalsa
@@ -42,8 +44,10 @@ def test_log_nao_tem_filtro_nem_corpo(
     venda = cliente_http.get("/api/v1/reservas/90000001/vendas/1001")
     # sem isto o teste passaria com dois 4xx/5xx que nunca chegaram a gerar log de AGI
     assert (lista.status_code, venda.status_code) == (200, 200)
-    assert "MARIA" not in caplog.text.upper() and "maria" not in caplog.text
-    assert ROTA_DA_VENDA in caplog.text and "idreserva=1001" in caplog.text
+    assert "MARIA" not in caplog.text.upper()
+    assert "maria" not in caplog.text
+    assert ROTA_DA_VENDA in caplog.text
+    assert "idreserva=1001" in caplog.text
     assert "agi.exemplo.invalid" not in caplog.text  # a URL da AGI nunca vai ao log
     assert "senha-de-teste" not in caplog.text
 
@@ -56,7 +60,8 @@ def test_linha_tem_metodo_rota_numero_status_e_duracao(
     (linha,) = _linhas_de_requisicao(caplog)
     assert "metodo=GET" in linha
     assert ROTA_DA_VENDA in linha
-    assert "numero=90000001" in linha and "idreserva=1001" in linha
+    assert "numero=90000001" in linha
+    assert "idreserva=1001" in linha
     assert "status=200" in linha
     assert "duracao_ms=" in linha
 
@@ -68,8 +73,10 @@ def test_rota_sem_parametros_nao_leva_numero_nem_query(
     cliente_http.get("/api/v1/parametros", params={"cliente": "maria"})
     (linha,) = _linhas_de_requisicao(caplog)
     assert "rota=/api/v1/parametros " in linha
-    assert "numero=" not in linha and "idreserva=" not in linha
-    assert "maria" not in linha and "cliente" not in linha
+    assert "numero=" not in linha
+    assert "idreserva=" not in linha
+    assert "maria" not in linha
+    assert "cliente" not in linha
 
 
 def test_numero_que_nao_e_digito_nao_vai_ao_log(
@@ -90,8 +97,11 @@ def test_rota_inexistente_loga_marcador_e_nao_o_caminho(
     r = cliente_http.get("/api/v1/clientes/MARIA-DA-SILVA?x=maria")
     assert r.status_code == 404
     (linha,) = _linhas_de_requisicao(caplog)
-    assert "rota=- " in linha and "status=404" in linha and "duracao_ms=" in linha
-    assert "MARIA" not in caplog.text.upper() and "clientes" not in caplog.text
+    assert "rota=- " in linha
+    assert "status=404" in linha
+    assert "duracao_ms=" in linha
+    assert "MARIA" not in caplog.text.upper()
+    assert "clientes" not in caplog.text
 
 
 def test_excecao_no_handler_loga_status_500_e_nao_engole(
@@ -115,7 +125,8 @@ def test_excecao_no_handler_loga_status_500_e_nao_engole(
     assert r.status_code == 500
     assert r.json()["codigo"] == "erro_interno"
     (linha,) = _linhas_de_requisicao(caplog)
-    assert "status=500" in linha and "numero=90000001" in linha
+    assert "status=500" in linha
+    assert "numero=90000001" in linha
     assert "rota=/api/v1/explode/{numero}" in linha
     assert "erro=ValueError" in linha
     assert "MARIA" not in linha.upper()  # a linha do middleware nunca leva a mensagem
@@ -168,7 +179,8 @@ def test_configurar_registro_silencia_httpx_e_nao_mexe_no_access_log() -> None:
     configurar_registro()  # idempotente
     assert logging.getLogger("httpx").level == logging.WARNING
     assert logging.getLogger("httpcore").level == logging.WARNING
-    assert (acesso.level, acesso.disabled, list(acesso.handlers), acesso.propagate) == antes
+    depois = (acesso.level, acesso.disabled, list(acesso.handlers), acesso.propagate)
+    assert depois == antes
     marcados = [h for h in logging.getLogger().handlers if getattr(h, "_stur_api", False)]
     assert len(marcados) == 1
     for destino in (marcados[0], logging.getLogger("uvicorn.error")):
@@ -179,7 +191,8 @@ def test_formato_chave_valor(capsys: pytest.CaptureFixture[str]) -> None:
     configurar_registro()
     logging.getLogger("api.requisicao").info("metodo=GET rota=/x status=200")
     err = capsys.readouterr().err
-    assert "nivel=INFO" in err and "logger=api.requisicao" in err
+    assert "nivel=INFO" in err
+    assert "logger=api.requisicao" in err
     assert "metodo=GET rota=/x status=200" in err
 
 
@@ -207,7 +220,8 @@ def test_traceback_do_uvicorn_nao_leva_mensagem_da_excecao(
     )
     (registro,) = [r for r in caplog.records if r.name == "uvicorn.error"]
     assert registro.getMessage() == "excecao_nao_tratada erro=ValueError"
-    assert registro.exc_info is None and registro.exc_text is None
+    assert registro.exc_info is None
+    assert registro.exc_text is None
     assert "MARIA" not in caplog.text.upper()
     assert "MARIA" not in _formatado_pelo_nosso_handler(registro).upper()
     assert "Traceback" not in caplog.text
@@ -229,7 +243,8 @@ def test_validation_error_do_pydantic_nao_vaza_input_value(
     logging.getLogger("asyncio").error("Task exception was never retrieved", exc_info=erro)
     assert "JOAO" not in caplog.text.upper()
     saida = capsys.readouterr().err
-    assert "JOAO" not in saida.upper() and "input_value" not in saida
+    assert "JOAO" not in saida.upper()
+    assert "input_value" not in saida
     assert "excecao_nao_tratada erro=ValidationError" in saida
     assert "excecao_nao_tratada erro=ValidationError" in caplog.text
 
@@ -271,7 +286,8 @@ def test_configuracao_invalida_sobe_sem_valores(
     assert "agi_itens_por_pagina: int_parsing" in str(erro)
     for segredo in SEGREDOS.values():
         assert segredo not in texto
-    assert erro.__cause__ is None and erro.__suppress_context__
+    assert erro.__cause__ is None
+    assert erro.__suppress_context__
 
 
 def test_httpx_nao_loga_a_url_da_agi(
@@ -282,3 +298,39 @@ def test_httpx_nao_loga_a_url_da_agi(
     cliente_http.get("/api/v1/saude/stur")
     assert agi.login.call_count == 1
     assert not [r for r in caplog.records if r.name in ("httpx", "httpcore")]
+
+
+# --- casos de borda do modelo da rota e da saída padrão ---
+
+
+def _escopo(caminho: str, parametros: dict[str, str]) -> dict[str, object]:
+    rota = SimpleNamespace(path="/vendas/{idreserva}", path_format="/vendas/{idreserva}")
+    return {"route": rota, "path": caminho, "path_params": parametros}
+
+
+def test_rota_com_parametro_que_nao_encaixa_no_modelo_loga_so_o_modelo() -> None:
+    # sem o parâmetro, o trecho não se monta: sai o modelo, nunca o caminho pedido
+    assert _rota(_escopo("/api/v1/vendas/MARIA", {})) == "/vendas/{idreserva}"
+
+
+def test_caminho_que_nao_termina_no_trecho_loga_so_o_modelo() -> None:
+    assert _rota(_escopo("/api/v1/outra/MARIA", {"idreserva": "1001"})) == "/vendas/{idreserva}"
+
+
+def test_falha_ao_escrever_no_stderr_nao_derruba_quem_loga(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _StderrQuebrado:
+        def write(self, _texto: str) -> int:
+            raise OSError("disco cheio")
+
+        def flush(self) -> None:  # pragma: no cover - write falha antes
+            pass
+
+    manipulador = _SaidaPadrao()
+    tratados: list[logging.LogRecord] = []
+    monkeypatch.setattr(manipulador, "handleError", tratados.append)
+    monkeypatch.setattr(sys, "stderr", _StderrQuebrado())
+    registro = logging.LogRecord("api.requisicao", logging.INFO, __file__, 1, "x", None, None)
+    manipulador.emit(registro)
+    assert tratados == [registro]

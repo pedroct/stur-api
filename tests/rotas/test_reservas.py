@@ -39,10 +39,10 @@ def test_reserva_com_varias_vendas(cliente_http: TestClient, agi: AgiFalsa) -> N
         fabrica.venda(idreserva=1003, status="CANCELADA"),
     ]
     r = cliente_http.get("/api/v1/reservas/90000001").json()["reserva"]
-    assert [v["resumo"]["idreserva"] for v in r["vendas"]] == [1001, 1002, 1003] and [
-        v["posicao"] for v in r["vendas"]
-    ] == [1, 2, 3]
-    assert r["totais"]["quantidade"] == 3 and r["totais"]["quantidadeCanceladas"] == 1
+    assert [v["resumo"]["idreserva"] for v in r["vendas"]] == [1001, 1002, 1003]
+    assert [v["posicao"] for v in r["vendas"]] == [1, 2, 3]
+    assert r["totais"]["quantidade"] == 3
+    assert r["totais"]["quantidadeCanceladas"] == 1
 
 
 def test_reserva_sem_vendas_e_200_vazia(cliente_http: TestClient, agi: AgiFalsa) -> None:
@@ -354,10 +354,8 @@ def test_avisos_do_fee_cancelado(cliente_http: TestClient, agi: AgiFalsa) -> Non
 
 def test_dado_cru_igual_ao_da_agi(cliente_http: TestClient, agi: AgiFalsa) -> None:
     r = cliente_http.get("/api/v1/reservas/90000001/vendas/1001/dado-cru")
-    assert (
-        r.headers["content-type"].startswith("application/json")
-        and '"totalCliente": 1050.01' in r.text
-    )
+    assert r.headers["content-type"].startswith("application/json")
+    assert '"totalCliente": 1050.01' in r.text
 
 
 def test_dado_cru_mantem_a_ordem_e_o_campo_novo(cliente_http: TestClient, agi: AgiFalsa) -> None:

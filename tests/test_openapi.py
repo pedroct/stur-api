@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from stur_api.main import criar_app
-from stur_api.openapi_export import serializar
+from stur_api.openapi_export import main, serializar
 
 RAIZ = Path(__file__).resolve().parent.parent
 SEIS_ROTAS = {
@@ -101,3 +101,12 @@ def test_serializar_e_deterministico_e_termina_em_quebra_de_linha() -> None:
     texto = serializar({"b": 1, "a": "é"})
     assert texto == '{\n  "a": "é",\n  "b": 1\n}\n'
     assert json.loads(texto) == {"a": "é", "b": 1}
+
+
+def test_main_escreve_o_contrato_em_utf8_no_stdout(
+    capsysbinary: pytest.CaptureFixture[bytes],
+) -> None:
+    main()
+    saida = capsysbinary.readouterr().out
+    assert saida == serializar(criar_app().openapi()).encode("utf-8")
+    assert saida.endswith(b"\n")

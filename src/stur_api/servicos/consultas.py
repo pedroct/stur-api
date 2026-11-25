@@ -309,7 +309,9 @@ def _linhas(
         fee: VinculoDoFee | None = None
         if r.tipo == "fee" and r.idreserva is not None:
             vinculada = vinculo_do_fee.get(r.idreserva)
-            if vinculada:  # o tipo "fee" já exige o vínculo; o teste só estreita o tipo
+            if (
+                vinculada
+            ):  # pragma: no branch — o tipo "fee" já exige o vínculo; o teste só estreita o tipo
                 fee = VinculoDoFee(idreserva=vinculada, produto=produto_no_resultado.get(vinculada))
         quantidade = 0 if r.numero is None else por_numero.get(r.numero, 0)
         linhas.append(LinhaResultado(**asdict(r), vendas_no_resultado=quantidade, fee=fee))
@@ -428,7 +430,7 @@ def _vinculada(
     venda: VendaAgi, posicao: int | None, quantidade: int | None
 ) -> VendaVinculada | None:
     if venda.idreserva is None or venda.reserva is None:
-        return None  # `validar_venda` já exige os dois; o teste só estreita o tipo
+        return None  # pragma: no cover — `validar_venda` já exige os dois; só estreita o tipo
     return VendaVinculada(
         idreserva=venda.idreserva,
         numero=venda.reserva,

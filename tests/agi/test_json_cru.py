@@ -5,7 +5,8 @@ from stur_api.agi.json_cru import carregar_json, serializar_cru
 
 def test_numeros_viram_decimal_exatos() -> None:
     dados = carregar_json('{"valor": 150197.72, "cambio": 1.000000000}')
-    assert dados["valor"] == Decimal("150197.72") and isinstance(dados["valor"], Decimal)
+    assert dados["valor"] == Decimal("150197.72")
+    assert isinstance(dados["valor"], Decimal)
 
 
 def test_dado_cru_preserva_literais_e_ordem() -> None:

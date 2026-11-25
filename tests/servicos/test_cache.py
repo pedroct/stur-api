@@ -132,3 +132,11 @@ def test_o_maximo_vale_depois_de_descartar_os_vencidos(relogio: RelogioFixo) -> 
     assert len(cache) == 2
     assert cache.obter(ConsultaVendas(90000002)) is None
     assert cache.obter(ConsultaVendas(90000004)) is not None
+
+
+def test_validade_zero_nao_guarda_nada(relogio: RelogioFixo) -> None:
+    cache = CacheResultados(0, relogio)
+    consulta = ConsultaVendas(90000001)
+    cache.guardar(consulta, _resultado(relogio))
+    assert len(cache) == 0
+    assert cache.obter(consulta) is None

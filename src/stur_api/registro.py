@@ -17,7 +17,7 @@ _FORMATO = "ts=%(asctime)s nivel=%(levelname)s logger=%(name)s %(message)s"
 _DATA = "%Y-%m-%dT%H:%M:%S%z"
 _LOGGERS_SILENCIADOS = ("httpx", "httpcore")  # o INFO do httpx grava a URL da AGI (R9)
 _METODOS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
-_SO_DIGITOS = re.compile(r"[0-9]{1,18}")
+_SO_DIGITOS = re.compile(r"\d{1,18}", re.ASCII)
 _log = logging.getLogger("api.requisicao")
 
 

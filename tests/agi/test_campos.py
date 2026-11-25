@@ -9,9 +9,9 @@ from tests import fabrica
 
 def test_modelo_gerado_valida_venda_inventada() -> None:
     venda_agi = validar_venda(fabrica.venda())
-    assert venda_agi.idreserva == 1001 and venda_agi.detalheItem[0].vlrTarifaTotal == Decimal(
-        "1000.00"
-    )
+    assert venda_agi.idreserva == 1001
+    assert venda_agi.detalheItem is not None
+    assert venda_agi.detalheItem[0].vlrTarifaTotal == Decimal("1000.00")
 
 
 def test_campo_novo_preenchido_e_listado_e_vazio_nao() -> None:
@@ -27,17 +27,18 @@ def test_campo_ausente_vira_none() -> None:
 
 
 def test_tipo_errado_e_resposta_invalida_sem_o_valor() -> None:
+    venda = fabrica.venda(idreserva="CLIENTE SECRETO")
     with pytest.raises(ApiSturRespostaInvalida) as erro:
-        validar_venda(fabrica.venda(idreserva="CLIENTE SECRETO"))
-    assert "idreserva" in str(erro.value.detalhe) and "CLIENTE SECRETO" not in str(
-        erro.value.detalhe
-    )
+        validar_venda(venda)
+    assert "idreserva" in str(erro.value.detalhe)
+    assert "CLIENTE SECRETO" not in str(erro.value.detalhe)
 
 
 def test_zero_e_false_contam_como_preenchidos() -> None:
-    assert (
-        preenchido(Decimal("0")) and preenchido(False) and not preenchido("") and not preenchido({})
-    )
+    assert preenchido(Decimal("0"))
+    assert preenchido(False)
+    assert not preenchido("")
+    assert not preenchido({})
 
 
 def test_erro_em_servico_traz_o_caminho_com_o_indice() -> None:
@@ -61,7 +62,19 @@ def test_fabrica_so_usa_campos_conhecidos() -> None:
     cru = fabrica.venda(trechos=trechos)
     assert campos_desconhecidos(cru) == []
     venda_agi = validar_venda(cru)
-    assert venda_agi.trechos[0].origem.sigla == "FOR"
+    assert venda_agi.trechos is not None
+    origem = venda_agi.trechos[0].origem
+    assert origem is not None
+    assert origem.sigla == "FOR"
+    assert venda_agi.recebimentos is not None
     assert venda_agi.recebimentos[0].valor == Decimal("1050.01")
-    assert fabrica.validar_trechos(trechos)[0].destino.sigla == "GIG"
+    destino = fabrica.validar_trechos(trechos)[0].destino
+    assert destino is not None
+    assert destino.sigla == "GIG"
     assert fabrica.validar_servico(fabrica.servico()).vlrCambio == Decimal("1")
+
+
+def test_lista_mista_lista_o_campo_e_os_campos_dos_itens() -> None:
+    # objetos e valores soltos na mesma lista: os itens são lidos e o campo também conta
+    cru = fabrica.venda(campoNovo=[{"taxa": "x"}, "solto"])
+    assert campos_desconhecidos(cru) == ["campoNovo", "campoNovo[].taxa"]

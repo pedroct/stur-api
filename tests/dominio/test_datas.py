@@ -30,7 +30,8 @@ def test_aceita_t_ou_espaco_como_separador() -> None:
 
 def test_data_lida_nao_tem_fuso() -> None:
     lido = ler_data_hora("2026-11-17T08:05:09")
-    assert lido is not None and lido.tzinfo is None
+    assert lido is not None
+    assert lido.tzinfo is None
 
 
 def test_tem_horario() -> None:
@@ -61,8 +62,10 @@ def test_formato_invalido_levanta_erro_sem_o_valor(texto: str) -> None:
         ler_data_hora(texto, "recebimentos[].dtVencto")
     assert erro.value.codigo == "api_stur_resposta_invalida"
     assert erro.value.detalhe == ["recebimentos[].dtVencto: formato_de_data_invalido"]
-    assert texto not in str(erro.value) and texto not in repr(erro.value.detalhe)
-    assert erro.value.__suppress_context__ and erro.value.__cause__ is None
+    assert texto not in str(erro.value)
+    assert texto not in repr(erro.value.detalhe)
+    assert erro.value.__suppress_context__
+    assert erro.value.__cause__ is None
 
 
 def test_campo_padrao_do_detalhe_e_data() -> None:

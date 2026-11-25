@@ -93,17 +93,16 @@ def _forma(
     return "so_datas"
 
 
-def montar_itinerario(trechos: list[TrechoAgi], corte_horas: int) -> Itinerario | None:
-    """Trajetos, esperas e estadias dos trechos; `None` quando não há trechos."""
-    if not trechos:
-        return None
-    partidas = [ler_data_hora(t.dtPartida, "trechos[].dtPartida") for t in trechos]
-    chegadas = [ler_data_hora(t.dtChegada, "trechos[].dtChegada") for t in trechos]
+def _agrupar(
+    trechos: list[TrechoAgi],
+    chegadas: list[datetime | None],
+    partidas: list[datetime | None],
+    corte: timedelta,
+) -> list[list[int]]:
+    """Índices dos trechos em ordem de segmento, agrupados por trajeto contínuo."""
     ordem = sorted(
         range(len(trechos)), key=lambda i: (trechos[i].segmento is None, trechos[i].segmento or 0)
     )
-    corte = timedelta(hours=corte_horas)
-
     grupos: list[list[int]] = []
     for i in ordem:
         if grupos and _continua_trajeto(
@@ -112,16 +111,16 @@ def montar_itinerario(trechos: list[TrechoAgi], corte_horas: int) -> Itinerario 
             grupos[-1].append(i)
         else:
             grupos.append([i])
+    return grupos
 
-    trajetos = []
-    for grupo in grupos:
-        esperas = [
-            e
-            for anterior, atual in zip(grupo, grupo[1:], strict=False)
-            if (e := _espera(anterior, atual, trechos, chegadas, partidas)) is not None
-        ]
-        trajetos.append(Trajeto(grupo, esperas))
 
+def _estadias(
+    grupos: list[list[int]],
+    trechos: list[TrechoAgi],
+    chegadas: list[datetime | None],
+    partidas: list[datetime | None],
+) -> list[Estadia]:
+    """Dias entre a chegada de um trajeto e a partida do seguinte."""
     estadias = []
     for posicao, (antes, depois) in enumerate(zip(grupos, grupos[1:], strict=False)):
         ultima, primeira = antes[-1], depois[0]
@@ -137,5 +136,26 @@ def montar_itinerario(trechos: list[TrechoAgi], corte_horas: int) -> Itinerario 
                 posicao, dias, _sigla(destino) or "", (destino.cidade if destino else None) or None
             )
         )
+    return estadias
 
+
+def montar_itinerario(trechos: list[TrechoAgi], corte_horas: int) -> Itinerario | None:
+    """Trajetos, esperas e estadias dos trechos; `None` quando não há trechos."""
+    if not trechos:
+        return None
+    partidas = [ler_data_hora(t.dtPartida, "trechos[].dtPartida") for t in trechos]
+    chegadas = [ler_data_hora(t.dtChegada, "trechos[].dtChegada") for t in trechos]
+    grupos = _agrupar(trechos, chegadas, partidas, timedelta(hours=corte_horas))
+    trajetos = [
+        Trajeto(
+            grupo,
+            [
+                e
+                for anterior, atual in zip(grupo, grupo[1:], strict=False)
+                if (e := _espera(anterior, atual, trechos, chegadas, partidas)) is not None
+            ],
+        )
+        for grupo in grupos
+    ]
+    estadias = _estadias(grupos, trechos, chegadas, partidas)
     return Itinerario(_forma(trechos, chegadas, partidas), trajetos, estadias)
