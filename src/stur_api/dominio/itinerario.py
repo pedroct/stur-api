@@ -44,7 +44,7 @@ class Itinerario:
     estadias: list[Estadia]
 
 
-def _sigla(local: LocalTrechoAgi | None) -> str | None:
+def sigla_do_local(local: LocalTrechoAgi | None) -> str | None:
     return (local.sigla if local else None) or None
 
 
@@ -55,8 +55,8 @@ def _continua_trajeto(
     partida: datetime | None,
     corte: timedelta,
 ) -> bool:
-    saida = _sigla(atual.origem)
-    if saida is None or saida != _sigla(anterior.destino):
+    saida = sigla_do_local(atual.origem)
+    if saida is None or saida != sigla_do_local(anterior.destino):
         return False
     if chegada is None or partida is None:
         return False
@@ -79,7 +79,7 @@ def _espera(
     minutos = int((partida - chegada).total_seconds() // 60)
     if minutos <= 0:
         return None
-    return Espera(anterior, minutos, _sigla(trechos[anterior].destino) or "")
+    return Espera(anterior, minutos, sigla_do_local(trechos[anterior].destino) or "")
 
 
 def _forma(
@@ -133,7 +133,10 @@ def _estadias(
         destino = trechos[ultima].destino
         estadias.append(
             Estadia(
-                posicao, dias, _sigla(destino) or "", (destino.cidade if destino else None) or None
+                posicao,
+                dias,
+                sigla_do_local(destino) or "",
+                (destino.cidade if destino else None) or None,
             )
         )
     return estadias

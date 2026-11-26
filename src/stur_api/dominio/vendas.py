@@ -51,6 +51,11 @@ class TotaisReserva:
     total_fornecedor: Decimal
     margem: Decimal
     percentual_lucro: Decimal | None
+    a_receber_cliente: Decimal  # saldos das vendas não canceladas; ausente conta zero
+    recebido_cliente: Decimal
+    a_pagar_fornecedor: Decimal
+    pago_fornecedor: Decimal
+    a_receber_fornecedor: Decimal
 
 
 def _vinculo_de_fee(venda: VendaAgi) -> int:
@@ -117,9 +122,18 @@ def ordenar_por_lancamento(vendas: list[VendaAgi]) -> list[VendaAgi]:
     return sorted(vendas, key=lambda v: v.idreserva or 0)
 
 
-def totais_da_reserva(resumos: list[ResumoVenda]) -> TotaisReserva:
-    """Soma só as vendas não canceladas; a quantidade conta todas (PRD 8.1)."""
+def _soma(vendas: list[VendaAgi], campo: str) -> Decimal:
+    valores: list[Decimal | None] = [getattr(v, campo) for v in vendas]
+    return sum((ZERO if valor is None else valor for valor in valores), start=ZERO)
+
+
+def totais_da_reserva(resumos: list[ResumoVenda], vendas: list[VendaAgi]) -> TotaisReserva:
+    """Soma só as vendas não canceladas; a quantidade conta todas (PRD 8.1).
+
+    `resumos` e `vendas` vêm na mesma ordem: os valores saem dos resumos e os saldos, das vendas.
+    """
     ativas = [r for r in resumos if r.situacao != CANCELADA]
+    nao_canceladas = [v for r, v in zip(resumos, vendas, strict=True) if r.situacao != CANCELADA]
     total_cliente = sum((r.total_cliente for r in ativas), start=ZERO)
     margem = sum((r.margem for r in ativas), start=ZERO)
     return TotaisReserva(
@@ -129,4 +143,9 @@ def totais_da_reserva(resumos: list[ResumoVenda]) -> TotaisReserva:
         total_fornecedor=sum((r.total_fornecedor for r in ativas), start=ZERO),
         margem=margem,
         percentual_lucro=percentual_lucro(margem, total_cliente),
+        a_receber_cliente=_soma(nao_canceladas, "totalAReceberCliente"),
+        recebido_cliente=_soma(nao_canceladas, "totalRecebidoCliente"),
+        a_pagar_fornecedor=_soma(nao_canceladas, "totalAPagarFornec"),
+        pago_fornecedor=_soma(nao_canceladas, "totalPagoFornec"),
+        a_receber_fornecedor=_soma(nao_canceladas, "totalAReceberFornecedor"),
     )

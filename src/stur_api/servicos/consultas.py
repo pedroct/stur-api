@@ -42,6 +42,7 @@ from stur_api.contrato.venda import (
     ReembolsoVinculado,
     Reserva,
     ReservaConsultada,
+    ResumoServico,
     TotaisServicos,
     VendaConsultada,
     VendaDaReserva,
@@ -61,6 +62,7 @@ from stur_api.dominio.resultado import (
     resumir_resultado,
     vendas_no_resultado,
 )
+from stur_api.dominio.servico import resumo_do_servico
 from stur_api.dominio.textos import normalizar
 from stur_api.erros import (
     ApiSturAcessoRecusado,
@@ -327,23 +329,45 @@ def _lancamentos(
     return [LancamentoCalculado.model_validate(asdict(c)) for c in calculados]
 
 
+def _venda_da_reserva(
+    venda: VendaAgi, resumo: dominio_vendas.ResumoVenda, posicao: int, hoje: date
+) -> VendaDaReserva:
+    """Monta a venda da reserva; os cálculos leem datas e podem recusar uma data desconhecida."""
+    servico = resumo_do_servico(venda)
+    estado = estado_do_servico(venda, hoje)
+    return VendaDaReserva(
+        resumo=ResumoVenda.model_validate(asdict(resumo)),
+        posicao=posicao,
+        servico=None if servico is None else ResumoServico.model_validate(asdict(servico)),
+        estado_servico=None if estado is None else EstadoServico.model_validate(asdict(estado)),
+        centro_custo=venda.nomeCCustoCliente or None,
+        data_cancelamento=venda.dtcancelamento,
+        recebimentos=_lancamentos(dominio_lancamentos.situacao_dos_recebimentos(venda, hoje)),
+        pagamentos=_lancamentos(dominio_lancamentos.situacao_dos_pagamentos(venda, hoje)),
+    )
+
+
 def _reserva(numero: int, ordenadas: list[VendaAgi], config: Configuracao, hoje: date) -> Reserva:
-    """A reserva: as vendas na ordem de lançamento, com posição, lançamentos e totais."""
+    """A reserva: as vendas na ordem de lançamento, com posição, lançamentos e totais.
+
+    Uma data em formato desconhecido em qualquer venda do número vira 502, apontando a venda.
+    """
     resumos = [dominio_vendas.resumir(v, config) for v in ordenadas]
+    vendas: list[VendaDaReserva] = []
+    for posicao, (venda, resumo) in enumerate(zip(ordenadas, resumos, strict=True), 1):
+        try:
+            vendas.append(_venda_da_reserva(venda, resumo, posicao, hoje))
+        except ApiSturRespostaInvalida as erro:
+            quem = f"venda {venda.idreserva}"
+            raise ApiSturRespostaInvalida(
+                detalhe=[f"{quem}: {item}" for item in erro.detalhe]
+            ) from None
     return Reserva(
         numero=numero,
-        vendas=[
-            VendaDaReserva(
-                resumo=ResumoVenda.model_validate(asdict(resumo)),
-                posicao=posicao,
-                recebimentos=_lancamentos(
-                    dominio_lancamentos.situacao_dos_recebimentos(venda, hoje)
-                ),
-                pagamentos=_lancamentos(dominio_lancamentos.situacao_dos_pagamentos(venda, hoje)),
-            )
-            for posicao, (venda, resumo) in enumerate(zip(ordenadas, resumos, strict=True), 1)
-        ],
-        totais=TotaisReserva.model_validate(asdict(dominio_vendas.totais_da_reserva(resumos))),
+        vendas=vendas,
+        totais=TotaisReserva.model_validate(
+            asdict(dominio_vendas.totais_da_reserva(resumos, ordenadas))
+        ),
     )
 
 

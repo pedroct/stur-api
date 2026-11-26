@@ -10,7 +10,7 @@ from stur_api.contrato.comum import Contrato, DecimalTexto
 from stur_api.dominio.contas import Efeito
 from stur_api.dominio.estado_servico import Base, Estado
 from stur_api.dominio.itinerario import Forma
-from stur_api.dominio.lancamentos import SituacaoLancamento
+from stur_api.dominio.lancamentos import SituacaoLancamento, TipoDocumento
 from stur_api.dominio.vendas import TipoVenda
 
 
@@ -65,6 +65,11 @@ class TotaisReserva(Contrato):
     total_fornecedor: DecimalTexto
     margem: DecimalTexto
     percentual_lucro: DecimalTexto | None
+    a_receber_cliente: DecimalTexto  # saldos das vendas não canceladas
+    recebido_cliente: DecimalTexto
+    a_pagar_fornecedor: DecimalTexto
+    pago_fornecedor: DecimalTexto
+    a_receber_fornecedor: DecimalTexto
 
 
 # --- conta de cada serviço e verificação dos totais (PRD 8.3, RF-06) ---
@@ -117,6 +122,11 @@ class Verificacao(Contrato):
 # --- lançamentos, itinerário e estado do serviço ---
 
 
+class Documento(Contrato):
+    tipo: TipoDocumento
+    numero: str
+
+
 class LancamentoCalculado(Contrato):
     indice: int  # posição na lista da AGI (`recebimentos` ou `pagamentos`)
     valor_exibido: DecimalTexto
@@ -124,6 +134,9 @@ class LancamentoCalculado(Contrato):
     situacao: SituacaoLancamento
     vencido: bool
     cartao_repassado: bool
+    descricao_forma: str | None  # o texto da forma na AGI (`descricaoForma`)
+    vencimento: str | None  # `dtVencto` como veio
+    documentos: list[Documento]
 
 
 class Espera(Contrato):

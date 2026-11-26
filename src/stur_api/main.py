@@ -55,7 +55,7 @@ def criar_app(servico: ServicoConsulta | None = None) -> FastAPI:
 
     app = FastAPI(
         title="stur-api",
-        version="0.1.0",
+        version="0.2.0",
         lifespan=ciclo_de_vida,
         generate_unique_id_function=_id_da_operacao,
     )

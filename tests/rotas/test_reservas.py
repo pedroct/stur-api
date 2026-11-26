@@ -71,6 +71,9 @@ def test_reserva_traz_lancamentos_e_instante(cliente_http: TestClient, agi: AgiF
             "situacao": "sem_saldo",
             "vencido": False,
             "cartaoRepassado": False,
+            "descricaoForma": "Faturado",
+            "vencimento": "2026-11-30 00:00:00",
+            "documentos": [],
         }
     ]
     assert venda["pagamentos"][0]["valorExibido"] == "990.00"
@@ -454,3 +457,78 @@ def test_busca_por_id_que_falha_loga_so_idreserva_e_classe(
     assert aviso.name == "servico.consultas"
     assert aviso.getMessage() == f"busca_por_id_falhou idreserva=1005 erro={classe}"
     assert aviso.exc_info is None
+
+
+def test_reserva_no_contrato_tem_os_campos_novos(cliente_http: TestClient, agi: AgiFalsa) -> None:
+    agi.vendas = [
+        fabrica.venda(
+            classificacaoproduto="Hotelaria",
+            nomeCCustoCliente="CENTRO EXEMPLO",
+            totalAReceberCliente=D("10.00"),
+            totalRecebidoCliente=D("5.00"),
+            detalheItem=[
+                fabrica.servico(
+                    dtEntrada="2026-11-26 00:00:00",
+                    dtSaida="2026-11-28 00:00:00",
+                    apartamentos=[fabrica.apartamento(qtdeDiarias=2)],
+                )
+            ],
+        ),
+        fabrica.venda(
+            idreserva=1002,
+            status="CANCELADA",
+            dtcancelamento="2026-11-20 10:00:00",
+            classificacaoproduto="Hotelaria",
+            detalheItem=[
+                fabrica.servico(dtEntrada="2026-11-26 00:00:00", dtSaida="2026-11-28 00:00:00")
+            ],
+        ),
+    ]
+    corpo = cliente_http.get("/api/v1/reservas/90000001").json()["reserva"]
+    primeira, cancelada = corpo["vendas"]
+    assert primeira["servico"] == {
+        "quantidade": 1,
+        "inicio": "2026-11-26",
+        "fim": "2026-11-28",
+        "rota": [],
+        "diarias": 2,
+        "descricao": None,
+    }
+    assert primeira["estadoServico"]["estado"] == "a_acontecer"
+    assert primeira["centroCusto"] == "CENTRO EXEMPLO"
+    assert primeira["dataCancelamento"] is None
+    assert cancelada["estadoServico"] is None
+    assert cancelada["servico"]["inicio"] == "2026-11-26"
+    assert cancelada["centroCusto"] is None
+    assert cancelada["dataCancelamento"] == "2026-11-20 10:00:00"
+    assert corpo["totais"]["aReceberCliente"] == "10.00"
+    assert corpo["totais"]["recebidoCliente"] == "5.00"
+    assert corpo["totais"]["aPagarFornecedor"] == "0.00"
+    assert corpo["totais"]["pagoFornecedor"] == "990.00"
+    assert corpo["totais"]["aReceberFornecedor"] == "0.00"
+
+
+def test_venda_sem_detalhe_nem_trechos_tem_servico_nulo(
+    cliente_http: TestClient, agi: AgiFalsa
+) -> None:
+    agi.vendas = [fabrica.venda(detalheItem=[], trechos=[])]
+    venda = cliente_http.get("/api/v1/reservas/90000001").json()["reserva"]["vendas"][0]
+    assert venda["servico"] is None
+    assert venda["estadoServico"] is None
+
+
+def test_data_invalida_numa_venda_irma_e_502_com_o_prefixo(
+    cliente_http: TestClient, agi: AgiFalsa
+) -> None:
+    agi.vendas = [
+        fabrica.venda(),
+        fabrica.venda(
+            idreserva=1002,
+            classificacaoproduto="Hotelaria",
+            detalheItem=[fabrica.servico(dtEntrada="amanhã", dtSaida="2026-11-28 00:00:00")],
+        ),
+    ]
+    r = cliente_http.get("/api/v1/reservas/90000001")
+    assert r.status_code == 502
+    assert r.json()["detalhe"] == ["venda 1002: detalheItem[].dtEntrada: formato_de_data_invalido"]
+    assert "amanhã" not in r.text

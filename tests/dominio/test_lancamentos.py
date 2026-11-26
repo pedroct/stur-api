@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 
 from stur_api.dominio.lancamentos import (
+    Documento,
     situacao_dos_pagamentos,
     situacao_dos_recebimentos,
     total_dos_pagamentos,
@@ -228,3 +229,56 @@ def test_vencimento_em_formato_novo_nos_pagamentos_levanta_erro() -> None:
     with pytest.raises(ApiSturRespostaInvalida) as erro:
         situacao_dos_pagamentos(v, HOJE)
     assert erro.value.detalhe == ["pagamentos[].dtVencto: formato_de_data_invalido"]
+
+
+def test_lancamento_leva_forma_vencimento_e_documentos() -> None:
+    v = validar_venda(
+        fabrica.venda(
+            recebimentos=[
+                fabrica.recebimento(
+                    forma=0,
+                    dtVencto="2026-11-17 00:00:00",
+                    numRecibo="RC1",
+                    numNotaDebito="",
+                    documentosFinanceiro="OS9",
+                ),
+                fabrica.recebimento(
+                    numRecibo=None,
+                    numNotaDebito="ND2",
+                    numNotaCredito="NC3",
+                    documentosFinanceiro="OS9",
+                    dtVencto=None,
+                ),
+                fabrica.recebimento(),
+            ]
+        )
+    )
+    r = situacao_dos_recebimentos(v, HOJE)
+    assert r[0].descricao_forma == "Cash"
+    assert r[0].vencimento == "2026-11-17 00:00:00"
+    assert r[0].documentos == [Documento("recibo", "RC1"), Documento("outro", "OS9")]
+    assert r[1].vencimento is None
+    assert r[1].documentos == [
+        Documento("nota_debito", "ND2"),
+        Documento("nota_credito", "NC3"),
+        Documento("outro", "OS9"),
+    ]
+    assert (r[2].descricao_forma, r[2].documentos) == ("Faturado", [])
+
+
+def test_pagamento_leva_forma_vencimento_e_so_documentos_financeiros() -> None:
+    v = validar_venda(
+        fabrica.venda(
+            pagamentos=[
+                fabrica.pagamento(
+                    forma=3, dtVencto="2026-12-01 00:00:00", documentosFinanceiro="OS7"
+                ),
+                fabrica.pagamento(documentosFinanceiro=""),
+            ]
+        )
+    )
+    p = situacao_dos_pagamentos(v, HOJE)
+    assert p[0].descricao_forma == "Cartão de Crédito Agência"
+    assert p[0].vencimento == "2026-12-01 00:00:00"
+    assert p[0].documentos == [Documento("outro", "OS7")]
+    assert p[1].documentos == []
