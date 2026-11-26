@@ -58,8 +58,24 @@ def _vencido(situacao: SituacaoLancamento, vencimento: str | None, hoje: date, c
 
 
 def _documentos(*pares: tuple[TipoDocumento, str | None]) -> list[Documento]:
-    """Os documentos preenchidos, na ordem dada."""
-    return [Documento(tipo, numero) for tipo, numero in pares if numero]
+    """Os documentos preenchidos, na ordem dada, cada número uma vez só.
+
+    A AGI repete em `documentosFinanceiro` o número que já veio em `numRecibo` ou `numNotaDebito`,
+    e junta vários números nesse campo, separados por vírgula. Os do tipo `outro` saem um a um, e um
+    número já incluído não entra de novo (vale o primeiro tipo).
+    """
+    documentos: list[Documento] = []
+    vistos: set[str] = set()
+    for tipo, valor in pares:
+        if not valor:
+            continue
+        numeros = [n.strip() for n in valor.split(",")] if tipo == "outro" else [valor]
+        for numero in numeros:
+            chave = numero.strip()
+            if numero and chave not in vistos:
+                vistos.add(chave)
+                documentos.append(Documento(tipo, numero))
+    return documentos
 
 
 def situacao_dos_recebimentos(venda: VendaAgi, hoje: date) -> list[LancamentoCalculado]:

@@ -282,3 +282,29 @@ def test_pagamento_leva_forma_vencimento_e_so_documentos_financeiros() -> None:
     assert p[0].vencimento == "2026-12-01 00:00:00"
     assert p[0].documentos == [Documento("outro", "OS7")]
     assert p[1].documentos == []
+
+
+def test_documento_repetido_entra_uma_vez_com_o_primeiro_tipo() -> None:
+    v = validar_venda(
+        fabrica.venda(
+            recebimentos=[
+                fabrica.recebimento(numRecibo="RC1", documentosFinanceiro="RC1"),
+                fabrica.recebimento(numNotaDebito="ND2", documentosFinanceiro="FT3, ND2"),
+            ]
+        )
+    )
+    r = situacao_dos_recebimentos(v, HOJE)
+    assert r[0].documentos == [Documento("recibo", "RC1")]
+    assert r[1].documentos == [Documento("nota_debito", "ND2"), Documento("outro", "FT3")]
+
+
+def test_documentos_financeiros_separados_por_virgula_viram_um_cada() -> None:
+    v = validar_venda(
+        fabrica.venda(pagamentos=[fabrica.pagamento(documentosFinanceiro="OS1, OS2,OS1 , ,OS3")])
+    )
+    p = situacao_dos_pagamentos(v, HOJE)
+    assert p[0].documentos == [
+        Documento("outro", "OS1"),
+        Documento("outro", "OS2"),
+        Documento("outro", "OS3"),
+    ]
