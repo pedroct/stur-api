@@ -41,6 +41,7 @@ ficam só no seu ambiente.
 | `LINHAS_POR_PAGINA` | `20` | padrão da lista paginada |
 | `OPCOES_POR_PAGINA` | `[20,50,100]` | opções do seletor "Por página" |
 | `AGI_TEMPO_LIMITE_S` | `30` | tempo limite de cada chamada à AGI |
+| `AGI_INTERVALO_LOGIN_S` | `60` | intervalo mínimo entre verificações de acesso e espera para novo login depois de uma recusa (`0` desliga) |
 | `AGI_ITENS_POR_PAGINA` | `2000` | itens por página nas consultas por período (entre 100 e 2000) |
 | `CACHE_RESULTADO_S` | `300` | tempo em que o resultado da lista fica em memória |
 | `TOLERANCIA_REAL` | `0.02` | tolerância da verificação dos totais, venda em real |

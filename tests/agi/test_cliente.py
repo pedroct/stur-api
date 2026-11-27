@@ -298,6 +298,100 @@ async def test_verificar_acesso_recusado(cliente: ClienteAgi, agi: AgiFalsa) -> 
         await cliente.verificar_acesso()
 
 
+# --- intervalo entre logins e espera depois de recusa ---
+
+
+def _login_certo(relogio: RelogioFixo) -> httpx.Response:
+    return httpx.Response(200, json={"token": jwt_falso(relogio.agora().timestamp() + 3600)})
+
+
+def _responder_login_com(agi: AgiFalsa, resposta: httpx.Response) -> None:
+    agi.login.side_effect = None
+    agi.login.return_value = resposta
+
+
+async def test_verificacoes_dentro_do_intervalo_fazem_um_login(
+    cliente: ClienteAgi, agi: AgiFalsa
+) -> None:
+    await asyncio.gather(*(cliente.verificar_acesso() for _ in range(20)))
+    for _ in range(5):
+        await cliente.verificar_acesso()
+    assert agi.login.call_count == 1
+
+
+async def test_verificacao_faz_novo_login_depois_do_intervalo(
+    cliente: ClienteAgi, agi: AgiFalsa, relogio: RelogioFixo
+) -> None:
+    await cliente.verificar_acesso()
+    relogio.avancar(60)
+    await cliente.verificar_acesso()
+    assert agi.login.call_count == 2
+
+
+async def test_recusa_vale_para_todos_dentro_do_intervalo(
+    cliente: ClienteAgi, agi: AgiFalsa
+) -> None:
+    _responder_login_com(agi, httpx.Response(401))
+    resultados = await asyncio.gather(
+        *(cliente.buscar_vendas(FILTRO_NUMERO) for _ in range(10)),
+        *(cliente.verificar_acesso() for _ in range(10)),
+        return_exceptions=True,
+    )
+    recusas = [r for r in resultados if isinstance(r, ApiSturAcessoRecusado)]
+    assert len(recusas) == 20
+    assert all(r.detalhe == {"status": 401} for r in recusas)
+    assert agi.login.call_count == 1
+    assert agi.reservas.call_count == 0
+
+
+async def test_depois_do_intervalo_tenta_de_novo_e_volta_a_funcionar(
+    cliente: ClienteAgi, agi: AgiFalsa, relogio: RelogioFixo
+) -> None:
+    _responder_login_com(agi, httpx.Response(401))
+    with pytest.raises(ApiSturAcessoRecusado):
+        await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert agi.login.call_count == 1
+    relogio.avancar(59)
+    with pytest.raises(ApiSturAcessoRecusado):
+        await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert agi.login.call_count == 1
+    _responder_login_com(agi, _login_certo(relogio))
+    relogio.avancar(1)
+    vendas = await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert [v["reserva"] for v in vendas] == [90000001]
+    assert agi.login.call_count == 2
+
+
+async def test_falha_sem_resposta_nao_segura_a_proxima_busca(
+    cliente: ClienteAgi, agi: AgiFalsa, relogio: RelogioFixo
+) -> None:
+    agi.login.side_effect = [httpx.Response(500), _login_certo(relogio)]
+    with pytest.raises(ApiSturSemResposta):
+        await cliente.buscar_vendas(FILTRO_NUMERO)
+    vendas = await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert [v["reserva"] for v in vendas] == [90000001]
+    assert agi.login.call_count == 2
+
+
+async def test_verificacao_repete_a_falha_recente_sem_novo_login(
+    cliente: ClienteAgi, agi: AgiFalsa
+) -> None:
+    _responder_login_com(agi, httpx.Response(500))
+    for _ in range(2):
+        with pytest.raises(ApiSturSemResposta):
+            await cliente.verificar_acesso()
+    assert agi.login.call_count == 1
+
+
+async def test_intervalo_zero_desliga_a_espera(
+    cliente: ClienteAgi, agi: AgiFalsa, config: Configuracao
+) -> None:
+    config.agi_intervalo_login_s = 0
+    await cliente.verificar_acesso()
+    await cliente.verificar_acesso()
+    assert agi.login.call_count == 2
+
+
 async def test_log_nao_tem_corpo(
     cliente: ClienteAgi, agi: AgiFalsa, caplog: pytest.LogCaptureFixture
 ) -> None:

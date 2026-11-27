@@ -122,7 +122,8 @@ class ServicoConsulta:
         )
 
     async def verificar_api_stur(self) -> SituacaoApiStur:
-        """Login de verdade na AGI. Nunca levanta: a saúde da AGI é informação, não erro."""
+        """Login de verdade na AGI, no máximo um por intervalo (dentro dele vale o resultado da
+        última tentativa). Nunca levanta: a saúde da AGI é informação, não erro."""
         try:
             await self._cliente.verificar_acesso()
         except ApiSturAcessoRecusado:
