@@ -7,6 +7,14 @@ on:
     workflows: [ci]
     types: [completed]
     branches: [main]
+  # Reconstrói a imagem de uma tag que já existe (por exemplo, quando o release criou o
+  # commit de versão mas não conseguiu publicar a tag). Não cria versão nem tag.
+  workflow_dispatch:
+    inputs:
+      versao:
+        description: "Versão já publicada como tag, sem o v (ex.: 0.2.0)"
+        required: true
+        type: string
 
 concurrency:
   group: release-${{ github.workflow }}
@@ -14,7 +22,10 @@ concurrency:
 
 jobs:
   release:
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    if: >-
+      github.event_name == 'workflow_run'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write # commit de versão, tag e GitHub Release
@@ -39,7 +50,11 @@ jobs:
 
   imagem:
     needs: release
-    if: needs.release.outputs.released == 'true'
+    # always(): no disparo manual o job release é pulado, e sem isto este também seria.
+    if: >-
+      always()
+      && (needs.release.outputs.released == 'true'
+          || (github.event_name == 'workflow_dispatch' && needs.release.result == 'skipped'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -47,7 +62,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release.outputs.tag }} # o commit de versão que o PSR acabou de criar
+          # o commit de versão que o PSR acabou de criar, ou a tag pedida no disparo manual
+          ref: ${{ needs.release.outputs.tag || format('v{0}', inputs.versao) }}
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
@@ -59,9 +75,9 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/pedroct/stur-api:${{ needs.release.outputs.version }}
+          tags: ghcr.io/pedroct/stur-api:${{ needs.release.outputs.version || inputs.versao }}
           labels: |
             org.opencontainers.image.source=https://github.com/pedroct/stur-api
-            org.opencontainers.image.version=${{ needs.release.outputs.version }}
+            org.opencontainers.image.version=${{ needs.release.outputs.version || inputs.versao }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
