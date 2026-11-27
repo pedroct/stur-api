@@ -191,6 +191,18 @@ class ClienteAgi:
         falha = None if recente is None else recente.falha
         if falha is not None and issubclass(falha.classe, ApiSturAcessoRecusado):
             raise falha.novo_erro()
+        tentativa = asyncio.create_task(self._tentar_login())
+        try:
+            return await asyncio.shield(tentativa)
+        except asyncio.CancelledError:
+            # quem desistiu não corta o login já enviado: a trava fica presa até ele terminar e
+            # o resultado é registrado, senão o próximo faria outro login dentro do intervalo
+            await asyncio.wait([tentativa])
+            if not tentativa.cancelled():
+                tentativa.exception()  # já registrada; lida para o asyncio não a imprimir
+            raise
+
+    async def _tentar_login(self) -> str:
         try:
             token = await self._fazer_login()
         except ErroAplicacao as erro:

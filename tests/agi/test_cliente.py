@@ -582,3 +582,80 @@ async def test_400_sem_objeto_json_nao_traz_o_corpo(
     with pytest.raises(ApiSturRespostaInvalida) as erro:
         await cliente.buscar_vendas(FILTRO_NUMERO)
     assert erro.value.detalhe == {"erro": None, "detalhes": None}
+
+
+# --- quem desiste no meio do login não fura a espera entre logins ---
+
+
+class _LoginPreso:
+    """Login que só responde quando `soltar` for ligado."""
+
+    def __init__(self, resposta: httpx.Response) -> None:
+        self.resposta = resposta
+        self.comecou = asyncio.Event()
+        self.soltar = asyncio.Event()
+        # contado aqui: o `call_count` do respx não vê a chamada cortada no meio
+        self.enviados = 0
+
+    async def responder(self, _pedido: httpx.Request) -> httpx.Response:
+        self.enviados += 1
+        self.comecou.set()
+        await self.soltar.wait()
+        return self.resposta
+
+
+async def _desistir_no_meio_do_login(preso: _LoginPreso, tarefa: asyncio.Task[Any]) -> None:
+    async with asyncio.timeout(1):
+        await preso.comecou.wait()
+    tarefa.cancel()
+    await asyncio.sleep(0.02)
+    preso.soltar.set()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(tarefa, 1)
+
+
+async def test_login_de_quem_desistiu_termina_e_o_token_serve_ao_proximo(
+    cliente: ClienteAgi, agi: AgiFalsa, relogio: RelogioFixo
+) -> None:
+    preso = _LoginPreso(_login_certo(relogio))
+    agi.login.side_effect = preso.responder
+    quem_desiste = asyncio.create_task(cliente.buscar_vendas(FILTRO_NUMERO))
+    await _desistir_no_meio_do_login(preso, quem_desiste)
+
+    vendas = await asyncio.wait_for(cliente.buscar_vendas(FILTRO_NUMERO), 1)
+
+    assert [v["reserva"] for v in vendas] == [90000001]
+    assert preso.enviados == 1
+
+
+async def test_recusa_do_login_de_quem_desistiu_segura_o_proximo(
+    cliente: ClienteAgi, agi: AgiFalsa
+) -> None:
+    preso = _LoginPreso(httpx.Response(401))
+    agi.login.side_effect = preso.responder
+    quem_desiste = asyncio.create_task(cliente.verificar_acesso())
+    await _desistir_no_meio_do_login(preso, quem_desiste)
+
+    with pytest.raises(ApiSturAcessoRecusado):
+        await asyncio.wait_for(cliente.buscar_vendas(FILTRO_NUMERO), 1)
+
+    assert preso.enviados == 1
+
+
+async def test_quem_chega_durante_o_login_abandonado_nao_faz_outro(
+    cliente: ClienteAgi, agi: AgiFalsa, relogio: RelogioFixo
+) -> None:
+    preso = _LoginPreso(_login_certo(relogio))
+    agi.login.side_effect = preso.responder
+    quem_desiste = asyncio.create_task(cliente.buscar_vendas(FILTRO_NUMERO))
+    async with asyncio.timeout(1):
+        await preso.comecou.wait()
+    quem_fica = asyncio.create_task(cliente.buscar_vendas(FILTRO_NUMERO))
+    quem_desiste.cancel()
+    await asyncio.sleep(0.02)
+    preso.soltar.set()
+
+    vendas = await asyncio.wait_for(quem_fica, 1)
+
+    assert [v["reserva"] for v in vendas] == [90000001]
+    assert preso.enviados == 1

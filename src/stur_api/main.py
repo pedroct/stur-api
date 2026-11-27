@@ -12,7 +12,7 @@ import httpx
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.routing import APIRoute
 from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -23,6 +23,7 @@ from stur_api.erros import ConsultaInvalida, ErroAplicacao, ErroInterno
 from stur_api.registro import MiddlewareRegistro, configurar_registro
 from stur_api.relogio import RelogioSistema
 from stur_api.rotas import parametros, reservas, saude, vendas
+from stur_api.rotas.desistencia import ClienteDesistiu
 from stur_api.servicos.consultas import ServicoConsulta
 
 PARAMETRO_INVALIDO = "parametro_invalido"
@@ -65,6 +66,7 @@ def criar_app(servico: ServicoConsulta | None = None) -> FastAPI:
     app.exception_handler(ErroAplicacao)(_erro_da_aplicacao)
     app.exception_handler(StarletteHTTPException)(_erro_http)
     app.exception_handler(RequestValidationError)(_parametro_invalido)
+    app.exception_handler(ClienteDesistiu)(_cliente_desistiu)
     app.exception_handler(Exception)(_erro_inesperado)
     for modulo in (saude, parametros, vendas, reservas):
         app.include_router(modulo.roteador, prefix="/api/v1")
@@ -126,6 +128,11 @@ def _nome_do_parametro(loc: tuple[int | str, ...]) -> str:
     """`("query", "situacao", 1)` → `"situacao"`: o nome como a query o escreve."""
     nomes = [str(parte) for parte in loc[1:] if isinstance(parte, str)]
     return nomes[0] if nomes else str(loc[0])
+
+
+def _cliente_desistiu(_pedido: Request, _erro: ClienteDesistiu) -> Response:
+    """Sem corpo: o cliente já saiu. O 499 (convenção do nginx) separa o caso no log."""
+    return Response(status_code=499)
 
 
 def _erro_inesperado(_pedido: Request, _erro: Exception) -> JSONResponse:

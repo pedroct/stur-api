@@ -6,10 +6,11 @@ as outras vendas do número e o fee. Nenhuma das três guarda resultado (PRD RF-
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 
 from stur_api.contrato.venda import ReservaConsultada, VendaConsultada
 from stur_api.rotas.dependencias import obter_servico
+from stur_api.rotas.desistencia import ate_o_cliente_sair
 from stur_api.rotas.respostas import (
     ERROS_DA_AGI,
     PARAMETRO_INVALIDO,
@@ -30,15 +31,17 @@ _DADO_CRU: dict[int | str, dict[str, Any]] = {
 
 
 @roteador.get("/reservas/{numero}")
-async def abrir_reserva(numero: int, servico: Servico) -> ReservaConsultada:
+async def abrir_reserva(numero: int, pedido: Request, servico: Servico) -> ReservaConsultada:
     """Número sem vendas: 200 com `reserva.vendas` vazia."""
-    return await servico.abrir_reserva(numero)
+    return await ate_o_cliente_sair(pedido, servico.abrir_reserva(numero))
 
 
 @roteador.get("/reservas/{numero}/vendas/{idreserva}", responses=VENDA_NAO_ENCONTRADA)
-async def abrir_venda(numero: int, idreserva: int, servico: Servico) -> VendaConsultada:
+async def abrir_venda(
+    numero: int, idreserva: int, pedido: Request, servico: Servico
+) -> VendaConsultada:
     """`idreserva` fora do número: 404 `venda_nao_encontrada`."""
-    return await servico.abrir_venda(numero, idreserva)
+    return await ate_o_cliente_sair(pedido, servico.abrir_venda(numero, idreserva))
 
 
 @roteador.get(
@@ -46,6 +49,8 @@ async def abrir_venda(numero: int, idreserva: int, servico: Servico) -> VendaCon
     response_class=Response,
     responses={**_DADO_CRU, **VENDA_NAO_ENCONTRADA},
 )
-async def dado_cru_da_venda(numero: int, idreserva: int, servico: Servico) -> Response:
-    texto = await servico.dado_cru(numero, idreserva)
+async def dado_cru_da_venda(
+    numero: int, idreserva: int, pedido: Request, servico: Servico
+) -> Response:
+    texto = await ate_o_cliente_sair(pedido, servico.dado_cru(numero, idreserva))
     return Response(content=texto, media_type="application/json")

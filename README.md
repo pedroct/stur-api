@@ -45,7 +45,7 @@ ficam só no seu ambiente.
 | `AGI_ITENS_POR_PAGINA` | `2000` | itens por página nas consultas por período (entre 100 e 2000) |
 | `CACHE_RESULTADO_S` | `300` | tempo em que o resultado da lista fica em memória |
 | `CACHE_RESULTADO_MAX_LINHAS` | `10000` | total de linhas dos resultados em memória; acima disso saem os mais antigos, e um resultado maior que o total não é guardado |
-| `CONSULTAS_SIMULTANEAS` | `2` | consultas de `GET /vendas` (por número, período ou os dois) que buscam na AGI ao mesmo tempo (mínimo `1`); as outras esperam a vez, e um resultado guardado responde sem esperar nem ocupar vaga. `GET /parametros` e as rotas de `/reservas` (reserva, venda e dado cru) não ocupam vaga |
+| `CONSULTAS_SIMULTANEAS` | `2` | consultas de `GET /vendas` (por número, período ou os dois) que buscam na AGI ao mesmo tempo (mínimo `1`); as outras esperam a vez, e um resultado guardado responde sem esperar nem ocupar vaga. `GET /parametros` e as rotas de `/reservas` (reserva, venda e dado cru) não ocupam vaga. Quem desconecta antes da resposta (Cancelar na tela, tempo limite, aba fechada) sai da fila, e a busca dele na AGI para; o log registra status `499`. Um login já enviado à AGI termina mesmo assim, para o intervalo entre logins valer. Vale para a lista e as rotas de `/reservas` |
 | `TOLERANCIA_REAL` | `0.02` | tolerância da verificação dos totais, venda em real |
 | `TOLERANCIA_MOEDA_POR_SERVICO` | `0.05` | tolerância por serviço com tarifa convertida |
 | `CORTE_TRAJETO_HORAS` | `24` | espera a partir da qual começa um trajeto novo |
