@@ -84,7 +84,9 @@ class ServicoConsulta:
         self._config = config
         self._cliente = cliente
         self._relogio = relogio
-        self._cache = CacheResultados(config.cache_resultado_s, relogio)
+        self._cache = CacheResultados(
+            config.cache_resultado_s, relogio, maximo_linhas=config.cache_resultado_max_linhas
+        )
         # a data da cópia fica guardada pelo mesmo prazo do resultado (5 minutos, PRD 9.3)
         self._data_copia = DataDaCopia(cliente, relogio, config.cache_resultado_s)
 

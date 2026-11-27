@@ -44,6 +44,7 @@ ficam só no seu ambiente.
 | `AGI_INTERVALO_LOGIN_S` | `60` | intervalo mínimo entre verificações de acesso e espera para novo login depois de uma recusa (`0` desliga) |
 | `AGI_ITENS_POR_PAGINA` | `2000` | itens por página nas consultas por período (entre 100 e 2000) |
 | `CACHE_RESULTADO_S` | `300` | tempo em que o resultado da lista fica em memória |
+| `CACHE_RESULTADO_MAX_LINHAS` | `10000` | total de linhas dos resultados em memória; acima disso saem os mais antigos, e um resultado maior que o total não é guardado |
 | `TOLERANCIA_REAL` | `0.02` | tolerância da verificação dos totais, venda em real |
 | `TOLERANCIA_MOEDA_POR_SERVICO` | `0.05` | tolerância por serviço com tarifa convertida |
 | `CORTE_TRAJETO_HORAS` | `24` | espera a partir da qual começa um trajeto novo |
