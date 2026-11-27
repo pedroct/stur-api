@@ -24,6 +24,7 @@ class Configuracao(BaseSettings):
     agi_itens_por_pagina: int = Field(default=2000, ge=100, le=2000)
     cache_resultado_s: int = 300
     cache_resultado_max_linhas: int = Field(default=10_000, ge=0)
+    consultas_simultaneas: int = Field(default=2, ge=1)
 
     tolerancia_real: Decimal = Decimal("0.02")
     tolerancia_moeda_por_servico: Decimal = Decimal("0.05")
