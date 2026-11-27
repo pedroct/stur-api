@@ -45,9 +45,31 @@ class FiltroAgi:
 
 
 @dataclass(frozen=True)
+class _FalhaDeLogin:
+    """O que se guarda de um login que falhou: nunca a exceção, cujo traceback (e contexto)
+    manteria a senha na memória."""
+
+    classe: type[ErroAplicacao]
+    codigo: str
+    mensagem: str
+    detalhe: Any
+
+    @classmethod
+    def de(cls, erro: ErroAplicacao) -> "_FalhaDeLogin":
+        return cls(type(erro), erro.codigo, erro.mensagem, erro.detalhe)
+
+    def novo_erro(self) -> ErroAplicacao:
+        """Um erro novo, igual ao original."""
+        # cada classe tem o seu construtor: monta pelo da base, com os dados já prontos
+        erro = self.classe.__new__(self.classe)
+        ErroAplicacao.__init__(erro, self.codigo, self.mensagem, self.detalhe)
+        return erro
+
+
+@dataclass(frozen=True)
 class _TentativaDeLogin:
     quando: datetime  # quando o resultado chegou
-    erro: ErroAplicacao | None  # None: o login deu certo
+    falha: _FalhaDeLogin | None  # None: o login deu certo
 
 
 def _corpo_da_busca(filtro: FiltroAgi, pagina: int) -> dict[str, Any]:
@@ -121,8 +143,8 @@ class ClienteAgi:
             recente = self._login_recente()
             if recente is None:
                 await self._entrar()
-            elif recente.erro is not None:
-                raise recente.erro.with_traceback(None)
+            elif recente.falha is not None:
+                raise recente.falha.novo_erro()
 
     async def buscar_vendas(self, filtro: FiltroAgi) -> list[dict[str, Any]]:
         vendas: list[dict[str, Any]] = []
@@ -166,12 +188,13 @@ class ClienteAgi:
         """Login, com o resultado registrado. Quem chama segura `_trava_login`. Depois de uma
         recusa, repete a recusa sem chamar a AGI até o intervalo passar."""
         recente = self._login_recente()
-        if recente is not None and isinstance(recente.erro, ApiSturAcessoRecusado):
-            raise ApiSturAcessoRecusado(detalhe=recente.erro.detalhe)
+        falha = None if recente is None else recente.falha
+        if falha is not None and issubclass(falha.classe, ApiSturAcessoRecusado):
+            raise falha.novo_erro()
         try:
             token = await self._fazer_login()
         except ErroAplicacao as erro:
-            self._ultimo_login = _TentativaDeLogin(self._relogio.agora(), erro)
+            self._ultimo_login = _TentativaDeLogin(self._relogio.agora(), _FalhaDeLogin.de(erro))
             raise
         self._ultimo_login = _TentativaDeLogin(self._relogio.agora(), None)
         return token

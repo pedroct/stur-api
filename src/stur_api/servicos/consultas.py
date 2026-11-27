@@ -89,7 +89,8 @@ class ServicoConsulta:
         )
         # a data da cópia fica guardada pelo mesmo prazo do resultado (5 minutos, PRD 9.3)
         self._data_copia = DataDaCopia(cliente, relogio, config.cache_resultado_s)
-        # cada busca de período ocupa memória enquanto dura: poucas ao mesmo tempo
+        # toda consulta da lista que vai à AGI, também a por número, ocupa uma vaga: a busca usa
+        # memória enquanto dura. O guardado, a reserva, a venda, o dado cru e os parâmetros não
         self._vagas = asyncio.Semaphore(config.consultas_simultaneas)
 
     async def consultar_vendas(self, c: ConsultaVendas, atualizar: bool) -> ResultadoConsulta:

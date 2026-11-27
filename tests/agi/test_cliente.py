@@ -1,9 +1,11 @@
 import asyncio
 import base64
+import gc
 import json
 import logging
 from datetime import date
 from decimal import Decimal
+from types import ModuleType
 from typing import Any
 
 import httpx
@@ -15,6 +17,7 @@ from stur_api.erros import (
     ApiSturAcessoRecusado,
     ApiSturRespostaInvalida,
     ApiSturSemResposta,
+    ErroAplicacao,
 )
 from tests import fabrica
 from tests.agi_falsa import AgiFalsa, jwt_falso
@@ -389,6 +392,87 @@ async def test_intervalo_zero_desliga_a_espera(
     config.agi_intervalo_login_s = 0
     await cliente.verificar_acesso()
     await cliente.verificar_acesso()
+    assert agi.login.call_count == 2
+
+
+# O cliente guarda o resultado do último login, nunca a exceção: o traceback dela leva ao
+# quadro com a senha, e o contexto, ao pedido do httpx com o JSON do login.
+
+# colaboradores recebidos de fora e a trava: não são estado do que o cliente guardou
+_FORA_DO_ESTADO = ("_config", "_http", "_relogio", "_trava_login")
+
+
+def _excecoes_guardadas(cliente: ClienteAgi) -> list[BaseException]:
+    """As exceções alcançáveis a partir do estado guardado no cliente."""
+    pendentes = [v for nome, v in vars(cliente).items() if nome not in _FORA_DO_ESTADO]
+    vistos: set[int] = set()
+    achadas: list[BaseException] = []
+    while pendentes:
+        objeto = pendentes.pop()
+        if id(objeto) in vistos or isinstance(objeto, type | ModuleType):
+            continue
+        vistos.add(id(objeto))
+        if isinstance(objeto, BaseException):
+            achadas.append(objeto)
+        pendentes.extend(gc.get_referents(objeto))
+    return achadas
+
+
+async def test_falha_no_login_nao_deixa_excecao_guardada_no_cliente(
+    cliente: ClienteAgi, agi: AgiFalsa
+) -> None:
+    agi.login.side_effect = httpx.ConnectError("sem rede")
+    with pytest.raises(ApiSturSemResposta):
+        await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert _excecoes_guardadas(cliente) == []
+    with pytest.raises(ApiSturSemResposta):
+        await cliente.verificar_acesso()  # repete a falha guardada
+    assert _excecoes_guardadas(cliente) == []
+
+
+@pytest.mark.parametrize(
+    "falha",
+    [httpx.Response(500), httpx.ConnectError("sem rede"), httpx.Response(401)],
+    ids=["500", "transporte", "recusa"],
+)
+async def test_cada_verificacao_levanta_um_erro_novo_e_igual(
+    cliente: ClienteAgi, agi: AgiFalsa, falha: httpx.Response | httpx.ConnectError
+) -> None:
+    agi.login.side_effect = [falha]
+    erros: list[ErroAplicacao] = []
+    for _ in range(3):  # a tentativa e duas repetições dentro do intervalo
+        with pytest.raises(ErroAplicacao) as erro:
+            await cliente.verificar_acesso()
+        erros.append(erro.value)
+    assert agi.login.call_count == 1
+    assert len({id(e) for e in erros}) == 3
+    original = erros[0]
+    for repetido in erros[1:]:
+        assert type(repetido) is type(original)
+        assert (repetido.status_http, repetido.codigo, repetido.mensagem, repetido.detalhe) == (
+            original.status_http,
+            original.codigo,
+            original.mensagem,
+            original.detalhe,
+        )
+        assert str(repetido) == str(original)
+        assert repetido.__context__ is None
+        assert repetido.__cause__ is None
+
+
+async def test_recusa_na_verificacao_nao_derruba_o_token_em_uso(
+    cliente: ClienteAgi, agi: AgiFalsa, relogio: RelogioFixo
+) -> None:
+    await cliente.buscar_vendas(FILTRO_NUMERO)
+    token_antigo = agi.reservas.calls.last.request.headers["Authorization"]
+    _responder_login_com(agi, httpx.Response(401))
+    relogio.avancar(60)
+    with pytest.raises(ApiSturAcessoRecusado):
+        await cliente.verificar_acesso()
+    assert agi.login.call_count == 2
+    vendas = await cliente.buscar_vendas(FILTRO_NUMERO)
+    assert [v["reserva"] for v in vendas] == [90000001]
+    assert agi.reservas.calls.last.request.headers["Authorization"] == token_antigo
     assert agi.login.call_count == 2
 
 
