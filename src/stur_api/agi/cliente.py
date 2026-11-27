@@ -14,7 +14,12 @@ import httpx
 
 from stur_api.agi.json_cru import carregar_json
 from stur_api.config import Configuracao
-from stur_api.erros import ApiSturAcessoRecusado, ApiSturRespostaInvalida, ApiSturSemResposta
+from stur_api.erros import (
+    ApiSturAcessoRecusado,
+    ApiSturRespostaInvalida,
+    ApiSturSemResposta,
+    ErroAplicacao,
+)
 from stur_api.relogio import Relogio
 
 # Os logs nunca levam URL, credenciais, token, corpo nem texto de filtro (cliente, fornecedor...).
@@ -37,6 +42,34 @@ class FiltroAgi:
     status: str | None = None
     itens_por_pagina: int = 100
     so_primeira_pagina: bool = False
+
+
+@dataclass(frozen=True)
+class _FalhaDeLogin:
+    """O que se guarda de um login que falhou: nunca a exceção, cujo traceback (e contexto)
+    manteria a senha na memória."""
+
+    classe: type[ErroAplicacao]
+    codigo: str
+    mensagem: str
+    detalhe: Any
+
+    @classmethod
+    def de(cls, erro: ErroAplicacao) -> "_FalhaDeLogin":
+        return cls(type(erro), erro.codigo, erro.mensagem, erro.detalhe)
+
+    def novo_erro(self) -> ErroAplicacao:
+        """Um erro novo, igual ao original."""
+        # cada classe tem o seu construtor: monta pelo da base, com os dados já prontos
+        erro = self.classe.__new__(self.classe)
+        ErroAplicacao.__init__(erro, self.codigo, self.mensagem, self.detalhe)
+        return erro
+
+
+@dataclass(frozen=True)
+class _TentativaDeLogin:
+    quando: datetime  # quando o resultado chegou
+    falha: _FalhaDeLogin | None  # None: o login deu certo
 
 
 def _corpo_da_busca(filtro: FiltroAgi, pagina: int) -> dict[str, Any]:
@@ -95,6 +128,7 @@ class ClienteAgi:
         self._relogio = relogio
         self._token: str | None = None
         self._expira_em: datetime | None = None
+        self._ultimo_login: _TentativaDeLogin | None = None
         self._trava_login = asyncio.Lock()
 
     @property
@@ -103,9 +137,14 @@ class ClienteAgi:
         return self._config
 
     async def verificar_acesso(self) -> None:
-        """Faz um login de verdade (não reaproveita o token): prova que as credenciais valem."""
+        """Prova que as credenciais valem com um login de verdade (não reaproveita o token), no
+        máximo um por intervalo: dentro dele, repete o resultado da última tentativa."""
         async with self._trava_login:
-            await self._entrar()
+            recente = self._login_recente()
+            if recente is None:
+                await self._entrar()
+            elif recente.falha is not None:
+                raise recente.falha.novo_erro()
 
     async def buscar_vendas(self, filtro: FiltroAgi) -> list[dict[str, Any]]:
         vendas: list[dict[str, Any]] = []
@@ -137,8 +176,42 @@ class ClienteAgi:
                 return self._token
             return await self._entrar()
 
+    def _login_recente(self) -> _TentativaDeLogin | None:
+        """A última tentativa, se feita há menos que o intervalo. Quem chama segura a trava."""
+        ultimo = self._ultimo_login
+        intervalo = timedelta(seconds=self._config.agi_intervalo_login_s)
+        if ultimo is None or self._relogio.agora() - ultimo.quando >= intervalo:
+            return None
+        return ultimo
+
     async def _entrar(self) -> str:
-        """Login. Quem chama segura `_trava_login`."""
+        """Login, com o resultado registrado. Quem chama segura `_trava_login`. Depois de uma
+        recusa, repete a recusa sem chamar a AGI até o intervalo passar."""
+        recente = self._login_recente()
+        falha = None if recente is None else recente.falha
+        if falha is not None and issubclass(falha.classe, ApiSturAcessoRecusado):
+            raise falha.novo_erro()
+        tentativa = asyncio.create_task(self._tentar_login())
+        try:
+            return await asyncio.shield(tentativa)
+        except asyncio.CancelledError:
+            # quem desistiu não corta o login já enviado: a trava fica presa até ele terminar e
+            # o resultado é registrado, senão o próximo faria outro login dentro do intervalo
+            await asyncio.wait([tentativa])
+            if not tentativa.cancelled():
+                tentativa.exception()  # já registrada; lida para o asyncio não a imprimir
+            raise
+
+    async def _tentar_login(self) -> str:
+        try:
+            token = await self._fazer_login()
+        except ErroAplicacao as erro:
+            self._ultimo_login = _TentativaDeLogin(self._relogio.agora(), _FalhaDeLogin.de(erro))
+            raise
+        self._ultimo_login = _TentativaDeLogin(self._relogio.agora(), None)
+        return token
+
+    async def _fazer_login(self) -> str:
         corpo = {
             "Username": self._config.stur_api_usuario,
             "Password": self._config.stur_api_senha.get_secret_value(),

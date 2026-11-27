@@ -3,11 +3,12 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from stur_api.contrato.consulta import ResultadoConsulta
 from stur_api.dominio.consulta import Classificacao, ConsultaVendas, Situacao, TipoData
 from stur_api.rotas.dependencias import obter_servico
+from stur_api.rotas.desistencia import ate_o_cliente_sair
 from stur_api.rotas.respostas import ERROS_DA_AGI, PARAMETRO_INVALIDO
 from stur_api.servicos.consultas import ServicoConsulta
 
@@ -17,6 +18,7 @@ roteador = APIRouter(responses={**PARAMETRO_INVALIDO, **ERROS_DA_AGI})
 @roteador.get("/vendas")
 async def consultar_vendas(
     *,
+    pedido: Request,
     servico: Annotated[ServicoConsulta, Depends(obter_servico)],
     reserva: int | None = None,
     tipo_data: Annotated[TipoData, Query(alias="tipoData")] = "emissao",
@@ -40,4 +42,4 @@ async def consultar_vendas(
         cliente=cliente,
         emissor=emissor,
     )
-    return await servico.consultar_vendas(consulta, atualizar)
+    return await ate_o_cliente_sair(pedido, servico.consultar_vendas(consulta, atualizar))

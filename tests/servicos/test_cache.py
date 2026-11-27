@@ -140,3 +140,57 @@ def test_validade_zero_nao_guarda_nada(relogio: RelogioFixo) -> None:
     cache.guardar(consulta, _resultado(relogio))
     assert len(cache) == 0
     assert cache.obter(consulta) is None
+
+
+def _com_linhas(relogio: RelogioFixo, n: int) -> ResultadoConsulta:
+    # model_copy não revalida: para o orçamento só importa quantas linhas há
+    return _resultado(relogio).model_copy(update={"vendas": [object()] * n})
+
+
+def test_acima_do_orcamento_de_linhas_saem_os_mais_antigos(relogio: RelogioFixo) -> None:
+    cache = CacheResultados(300, relogio, maximo_linhas=10)
+    a, b, c = (ConsultaVendas(90000001 + i) for i in range(3))
+    for consulta in (a, b, c):
+        cache.guardar(consulta, _com_linhas(relogio, 4))
+    assert cache.obter(a) is None
+    assert cache.obter(b) is not None
+    assert cache.obter(c) is not None
+    assert cache.linhas == 8
+
+
+def test_resultado_maior_que_o_orcamento_nao_e_guardado(relogio: RelogioFixo) -> None:
+    cache = CacheResultados(300, relogio, maximo_linhas=10)
+    a, b = (ConsultaVendas(90000001 + i) for i in range(2))
+    cache.guardar(a, _com_linhas(relogio, 4))
+    cache.guardar(b, _com_linhas(relogio, 11))
+    assert cache.obter(b) is None
+    assert cache.obter(a) is not None
+    assert cache.linhas == 4
+
+
+def test_guardar_de_novo_nao_conta_em_dobro(relogio: RelogioFixo) -> None:
+    cache = CacheResultados(300, relogio, maximo_linhas=10)
+    a = ConsultaVendas(90000001)
+    cache.guardar(a, _com_linhas(relogio, 6))
+    cache.guardar(a, _com_linhas(relogio, 6))
+    assert len(cache) == 1
+    assert cache.linhas == 6
+
+
+def test_regravar_com_resultado_grande_demais_apaga_o_antigo(relogio: RelogioFixo) -> None:
+    cache = CacheResultados(300, relogio, maximo_linhas=10)
+    a = ConsultaVendas(90000001)
+    cache.guardar(a, _com_linhas(relogio, 4))
+    cache.guardar(a, _com_linhas(relogio, 11))
+    assert cache.obter(a) is None
+    assert cache.linhas == 0
+
+
+def test_vencidos_devolvem_o_orcamento(relogio: RelogioFixo) -> None:
+    cache = CacheResultados(300, relogio, maximo_linhas=10)
+    a, b = (ConsultaVendas(90000001 + i) for i in range(2))
+    cache.guardar(a, _com_linhas(relogio, 8))
+    relogio.avancar(300)
+    assert cache.obter(a) is None
+    cache.guardar(b, _com_linhas(relogio, 8))
+    assert cache.linhas == 8

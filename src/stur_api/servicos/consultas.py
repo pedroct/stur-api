@@ -84,33 +84,47 @@ class ServicoConsulta:
         self._config = config
         self._cliente = cliente
         self._relogio = relogio
-        self._cache = CacheResultados(config.cache_resultado_s, relogio)
+        self._cache = CacheResultados(
+            config.cache_resultado_s, relogio, maximo_linhas=config.cache_resultado_max_linhas
+        )
         # a data da cópia fica guardada pelo mesmo prazo do resultado (5 minutos, PRD 9.3)
         self._data_copia = DataDaCopia(cliente, relogio, config.cache_resultado_s)
+        # toda consulta da lista que vai à AGI, também a por número, ocupa uma vaga: a busca usa
+        # memória enquanto dura. O guardado, a reserva, a venda, o dado cru e os parâmetros não
+        self._vagas = asyncio.Semaphore(config.consultas_simultaneas)
 
     async def consultar_vendas(self, c: ConsultaVendas, atualizar: bool) -> ResultadoConsulta:
-        """Valida antes de chamar a AGI; `atualizar` ignora o guardado e guarda o novo."""
+        """Valida antes de chamar a AGI; `atualizar` ignora o guardado e guarda o novo.
+
+        O guardado responde na hora; a busca na AGI espera uma das `consultas_simultaneas` vagas.
+        """
         validar_consulta(c, self._config)
         if not atualizar:
             guardado = self._cache.obter(c)
             if guardado is not None:
                 return guardado
-        consultado_em = self._relogio.agora()
-        filtro = filtro_agi(c, self._config, consultado_em.date())
-        vendas = _validar_vendas(await self._cliente.buscar_vendas(filtro))
-        dados_ate = await self._dados_ate(vendas)
-        resumos = [dominio_vendas.resumir(v, self._config) for v in vendas]
-        achados = ordenar_resultado(aplicar_filtros(resumos, c), c)
-        resultado = ResultadoConsulta(
-            consulta=_consulta_ecoada(c),
-            consultado_em=consultado_em,
-            dados_do_stur_ate=dados_ate,
-            periodo_passa_da_copia=_periodo_passa_da_copia(c, dados_ate),
-            vendas=_linhas(achados, vendas),
-            resumo=ResumoResultado.model_validate(asdict(resumir_resultado(achados))),
-        )
-        self._cache.guardar(c, resultado)
-        return resultado
+        async with self._vagas:
+            if not atualizar:
+                # enquanto esperava a vaga, uma consulta igual pode ter guardado o resultado
+                guardado = self._cache.obter(c)
+                if guardado is not None:
+                    return guardado
+            consultado_em = self._relogio.agora()
+            filtro = filtro_agi(c, self._config, consultado_em.date())
+            vendas = _validar_vendas(await self._cliente.buscar_vendas(filtro))
+            dados_ate = await self._dados_ate(vendas)
+            resumos = [dominio_vendas.resumir(v, self._config) for v in vendas]
+            achados = ordenar_resultado(aplicar_filtros(resumos, c), c)
+            resultado = ResultadoConsulta(
+                consulta=_consulta_ecoada(c),
+                consultado_em=consultado_em,
+                dados_do_stur_ate=dados_ate,
+                periodo_passa_da_copia=_periodo_passa_da_copia(c, dados_ate),
+                vendas=_linhas(achados, vendas),
+                resumo=ResumoResultado.model_validate(asdict(resumir_resultado(achados))),
+            )
+            self._cache.guardar(c, resultado)
+            return resultado
 
     async def parametros(self) -> Parametros:
         return Parametros(
@@ -122,7 +136,8 @@ class ServicoConsulta:
         )
 
     async def verificar_api_stur(self) -> SituacaoApiStur:
-        """Login de verdade na AGI. Nunca levanta: a saúde da AGI é informação, não erro."""
+        """Login de verdade na AGI, no máximo um por intervalo (dentro dele vale o resultado da
+        última tentativa). Nunca levanta: a saúde da AGI é informação, não erro."""
         try:
             await self._cliente.verificar_acesso()
         except ApiSturAcessoRecusado:
