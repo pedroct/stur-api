@@ -87,8 +87,9 @@ async def test_falhas_liberam_a_vaga(
 
     _trocar_busca(monkeypatch, servico, _sem_resposta)
     for dia in range(1, 4):
+        chamada = servico.consultar_vendas(_consulta(dia), atualizar=False)
         with pytest.raises(ApiSturSemResposta):
-            await asyncio.wait_for(servico.consultar_vendas(_consulta(dia), atualizar=False), 1)
+            await asyncio.wait_for(chamada, 1)
     _trocar_busca(monkeypatch, servico, AgiContada().buscar_vendas)
     resultado = await asyncio.wait_for(servico.consultar_vendas(_consulta(4), atualizar=False), 1)
     assert resultado.consulta.de == date(2026, 11, 4)
