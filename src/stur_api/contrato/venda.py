@@ -4,6 +4,7 @@ A venda sai com os nomes da AGI (roteiro, decisão 4); os valores calculados e o
 camelCase pt-BR. Dinheiro, câmbio e percentuais como texto em toda parte, também dentro da venda.
 """
 
+from datetime import date
 from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, Field, PlainSerializer
@@ -41,9 +42,22 @@ CodigoAviso = Literal[
 ]
 
 
+class ResumoServico(Contrato):
+    quantidade: int  # serviços em `detalheItem`
+    inicio: date | None  # `AAAA-MM-DD`
+    fim: date | None
+    rota: list[list[str]]  # siglas dos aeroportos, um item por trajeto
+    diarias: int | None  # hotelaria e locação
+    descricao: str | None  # Diversos e Pacote
+
+
 class VendaDaReserva(Contrato):
     resumo: ResumoVenda
     posicao: int  # 1 a n, na ordem de lançamento
+    servico: ResumoServico | None
+    estado_servico: EstadoServico | None
+    centro_custo: str | None  # `nomeCCustoCliente`, só quando preenchido
+    data_cancelamento: str | None  # `dtcancelamento` como veio
     recebimentos: list[LancamentoCalculado]
     pagamentos: list[LancamentoCalculado]
 

@@ -4,6 +4,7 @@ from typing import Any
 from stur_api.config import Configuracao
 from stur_api.dominio.vendas import (
     ResumoVenda,
+    TotaisReserva,
     ordenar_por_lancamento,
     resumir,
     tipo_da_venda,
@@ -23,6 +24,11 @@ CONFIG = Configuracao(
 
 def _resumo(**campos: Any) -> ResumoVenda:
     return resumir(validar_venda(fabrica.venda(**campos)), CONFIG)
+
+
+def _totais(resumos: list[ResumoVenda]) -> TotaisReserva:
+    """Totais de resumos montados de vendas com os mesmos campos (a ordem das listas é a mesma)."""
+    return totais_da_reserva(resumos, [validar_venda(fabrica.venda()) for _ in resumos])
 
 
 def test_incentivo_pelo_produto(config: Configuracao) -> None:
@@ -114,7 +120,7 @@ def test_totais_da_reserva_sem_canceladas() -> None:
             margemLucroBruta=D("100"),
         ),
     ]
-    t = totais_da_reserva(resumos)
+    t = _totais(resumos)
     assert (t.quantidade, t.quantidade_canceladas) == (3, 1)
     assert (t.total_cliente, t.total_fornecedor, t.margem) == (D("1500"), D("1400"), D("100"))
     assert t.percentual_lucro == D("6.67")
@@ -135,17 +141,15 @@ def test_margem_negativa_entra_na_soma() -> None:
             margemLucroBruta=D("-50"),
         ),
     ]
-    t = totais_da_reserva(resumos)
+    t = _totais(resumos)
     assert t.margem == D("50")
     assert t.percentual_lucro == D("4.17")
 
 
 def test_totais_com_total_cliente_zero_nao_tem_percentual() -> None:
-    t = totais_da_reserva(
-        [_resumo(totalCliente=D("0"), totalFornecedor=D("0"), margemLucroBruta=D("0"))]
-    )
+    t = _totais([_resumo(totalCliente=D("0"), totalFornecedor=D("0"), margemLucroBruta=D("0"))])
     assert t.percentual_lucro is None
-    assert totais_da_reserva([]).quantidade == 0
+    assert totais_da_reserva([], []).quantidade == 0
 
 
 def test_passageiros_distintos_na_ordem(config: Configuracao) -> None:
@@ -165,3 +169,38 @@ def test_passageiros_distintos_na_ordem(config: Configuracao) -> None:
         "JOAO EXEMPLO",
         "ANA EXEMPLO",
     ]
+
+
+def test_totais_da_reserva_somam_saldos_sem_canceladas() -> None:
+    campos = [
+        {
+            "totalAReceberCliente": D("10.00"),
+            "totalRecebidoCliente": D("1.10"),
+            "totalAPagarFornec": D("7.00"),
+            "totalPagoFornec": D("3.00"),
+            "totalAReceberFornecedor": D("2.00"),
+        },
+        {
+            "totalAReceberCliente": D("5.50"),
+            "totalRecebidoCliente": None,
+            "totalAPagarFornec": D("0.25"),
+            "totalPagoFornec": D("4.00"),
+            "totalAReceberFornecedor": D("0.50"),
+        },
+        {
+            "status": "CANCELADA",
+            "totalAReceberCliente": D("99.00"),
+            "totalRecebidoCliente": D("99.00"),
+            "totalAPagarFornec": D("99.00"),
+            "totalPagoFornec": D("99.00"),
+            "totalAReceberFornecedor": D("99.00"),
+        },
+    ]
+    vendas = [validar_venda(fabrica.venda(idreserva=1001 + i, **c)) for i, c in enumerate(campos)]
+    resumos = [resumir(v, CONFIG) for v in vendas]
+    t = totais_da_reserva(resumos, vendas)
+    assert t.a_receber_cliente == D("15.50")
+    assert t.recebido_cliente == D("1.10")
+    assert t.a_pagar_fornecedor == D("7.25")
+    assert t.pago_fornecedor == D("7.00")
+    assert t.a_receber_fornecedor == D("2.50")

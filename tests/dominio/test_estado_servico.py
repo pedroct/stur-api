@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any
 
-from stur_api.dominio.estado_servico import EstadoServico, estado_do_servico
+from stur_api.dominio.estado_servico import EstadoServico, estado_do_servico, periodo_do_servico
 from tests import fabrica
 from tests.fabrica import validar_venda
 
@@ -153,3 +153,24 @@ def test_classificacao_desconhecida_nao_tem_estado() -> None:
         ],
     )
     assert estado is None
+
+
+def test_periodo_do_servico_vale_na_cancelada() -> None:
+    venda = validar_venda(
+        fabrica.venda(
+            status="CANCELADA",
+            classificacaoproduto="Hotelaria",
+            detalheItem=[
+                fabrica.servico(dtEntrada="2026-11-26 00:00:00", dtSaida="2026-11-28 00:00:00")
+            ],
+        )
+    )
+    assert periodo_do_servico(venda) == (date(2026, 11, 26), date(2026, 11, 28))
+    assert estado_do_servico(venda, HOJE) is None
+
+
+def test_periodo_do_servico_sem_regra_e_sem_datas() -> None:
+    sem_regra = validar_venda(fabrica.venda(classificacaoproduto="Outra"))
+    assert periodo_do_servico(sem_regra) == (None, None)
+    sem_datas = validar_venda(fabrica.venda(classificacaoproduto="Hotelaria"))
+    assert periodo_do_servico(sem_datas) == (None, None)

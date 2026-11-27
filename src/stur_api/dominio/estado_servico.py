@@ -80,6 +80,17 @@ _FONTES: dict[str, tuple[Base, Callable[[VendaAgi], tuple[date | None, date | No
 }
 
 
+def periodo_do_servico(venda: VendaAgi) -> tuple[date | None, date | None]:
+    """Início e fim do serviço pelas datas da classificação; vale também na venda cancelada.
+
+    Classificação sem regra dá `(None, None)`.
+    """
+    fonte = _FONTES.get(normalizar(venda.classificacaoproduto or ""))
+    if fonte is None:
+        return (None, None)
+    return fonte[1](venda)
+
+
 def estado_do_servico(venda: VendaAgi, hoje: date) -> EstadoServico | None:
     """Estado do serviço em `hoje`; `None` se cancelada, sem datas ou de classificação sem regra."""
     if normalizar(venda.status or "") == "CANCELADA":
@@ -87,8 +98,7 @@ def estado_do_servico(venda: VendaAgi, hoje: date) -> EstadoServico | None:
     fonte = _FONTES.get(normalizar(venda.classificacaoproduto or ""))
     if fonte is None:
         return None
-    base, periodo = fonte
-    inicio, fim = periodo(venda)
+    inicio, fim = periodo_do_servico(venda)
     if inicio is None or fim is None:
         return None
     if hoje < inicio:
@@ -97,4 +107,4 @@ def estado_do_servico(venda: VendaAgi, hoje: date) -> EstadoServico | None:
         estado = "em_andamento"
     else:
         estado = "concluido"
-    return EstadoServico(estado, inicio, fim, base)
+    return EstadoServico(estado, inicio, fim, fonte[0])

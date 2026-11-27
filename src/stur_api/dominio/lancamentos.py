@@ -20,6 +20,15 @@ FORMA_CREDITO = 2  # Crédito do fornecedor: aparece negativo e abate o total (P
 SituacaoLancamento = Literal["previsto", "sem_saldo", "em_aberto", "recebido_em_parte"]
 
 
+TipoDocumento = Literal["recibo", "nota_debito", "nota_credito", "outro"]
+
+
+@dataclass(frozen=True)
+class Documento:
+    tipo: TipoDocumento
+    numero: str
+
+
 @dataclass(frozen=True)
 class LancamentoCalculado:
     indice: int  # posição na lista da AGI
@@ -28,6 +37,9 @@ class LancamentoCalculado:
     situacao: SituacaoLancamento
     vencido: bool
     cartao_repassado: bool
+    descricao_forma: str | None  # o texto da forma (`descricaoForma`), não o código `forma`
+    vencimento: str | None  # `dtVencto` como veio
+    documentos: list[Documento]
 
 
 def _situacao(a_receber: Decimal | None, recebido: Decimal | None) -> SituacaoLancamento:
@@ -45,6 +57,27 @@ def _vencido(situacao: SituacaoLancamento, vencimento: str | None, hoje: date, c
     return data is not None and data.date() < hoje
 
 
+def _documentos(*pares: tuple[TipoDocumento, str | None]) -> list[Documento]:
+    """Os documentos preenchidos, na ordem dada, cada número uma vez só.
+
+    A AGI repete em `documentosFinanceiro` o número que já veio em `numRecibo` ou `numNotaDebito`,
+    e junta vários números nesse campo, separados por vírgula. Os do tipo `outro` saem um a um, e um
+    número já incluído não entra de novo (vale o primeiro tipo).
+    """
+    documentos: list[Documento] = []
+    vistos: set[str] = set()
+    for tipo, valor in pares:
+        if not valor:
+            continue
+        numeros = [n.strip() for n in valor.split(",")] if tipo == "outro" else [valor]
+        for numero in numeros:
+            chave = numero.strip()
+            if numero and chave not in vistos:
+                vistos.add(chave)
+                documentos.append(Documento(tipo, numero))
+    return documentos
+
+
 def situacao_dos_recebimentos(venda: VendaAgi, hoje: date) -> list[LancamentoCalculado]:
     reservada = venda.status == "RESERVADA"
     da_venda = _situacao(venda.totalAReceberCliente, venda.totalRecebidoCliente)
@@ -59,6 +92,14 @@ def situacao_dos_recebimentos(venda: VendaAgi, hoje: date) -> list[LancamentoCal
                 situacao=situacao,
                 vencido=_vencido(situacao, recebimento.dtVencto, hoje, "recebimentos[].dtVencto"),
                 cartao_repassado=bool(recebimento.cartaoRepassadoAoFornecedor),
+                descricao_forma=recebimento.descricaoForma,
+                vencimento=recebimento.dtVencto,
+                documentos=_documentos(
+                    ("recibo", recebimento.numRecibo),
+                    ("nota_debito", recebimento.numNotaDebito),
+                    ("nota_credito", recebimento.numNotaCredito),
+                    ("outro", recebimento.documentosFinanceiro),
+                ),
             )
         )
     return calculados
@@ -83,6 +124,9 @@ def situacao_dos_pagamentos(venda: VendaAgi, hoje: date) -> list[LancamentoCalcu
                 situacao=situacao,
                 vencido=_vencido(situacao, pagamento.dtVencto, hoje, "pagamentos[].dtVencto"),
                 cartao_repassado=False,
+                descricao_forma=pagamento.descricaoForma,
+                vencimento=pagamento.dtVencto,
+                documentos=_documentos(("outro", pagamento.documentosFinanceiro)),
             )
         )
     return calculados

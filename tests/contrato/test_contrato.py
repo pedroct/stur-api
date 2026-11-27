@@ -7,9 +7,17 @@ import pytest
 from pydantic import BaseModel
 from pydantic.alias_generators import to_camel
 
-from stur_api.contrato import calculos
+from stur_api.contrato import calculos, venda
 from stur_api.contrato.comum import Contrato, DecimalTexto, decimais_em_texto
-from stur_api.dominio import contas, estado_servico, itinerario, lancamentos, resultado, vendas
+from stur_api.dominio import (
+    contas,
+    estado_servico,
+    itinerario,
+    lancamentos,
+    resultado,
+    servico,
+    vendas,
+)
 
 
 class _Exemplo(Contrato):
@@ -57,6 +65,8 @@ def test_campos_em_camel_case_e_aceita_o_nome_do_python() -> None:
         (itinerario.Estadia, calculos.Estadia),
         (itinerario.Itinerario, calculos.Itinerario),
         (estado_servico.EstadoServico, calculos.EstadoServico),
+        (lancamentos.Documento, calculos.Documento),
+        (servico.ResumoServico, venda.ResumoServico),
     ],
 )
 def test_contrato_tem_os_campos_do_dominio(dominio: type, contrato: type[BaseModel]) -> None:
@@ -89,6 +99,8 @@ _CONTRATO_MAIS_ESTRITO = {("ResumoVenda", "numero"), ("ResumoVenda", "idreserva"
         (itinerario.Estadia, calculos.Estadia),
         (itinerario.Itinerario, calculos.Itinerario),
         (estado_servico.EstadoServico, calculos.EstadoServico),
+        (lancamentos.Documento, calculos.Documento),
+        (servico.ResumoServico, venda.ResumoServico),
     ],
 )
 def test_contrato_nao_muda_a_nulidade_do_dominio(dominio: type, contrato: type[BaseModel]) -> None:

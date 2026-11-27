@@ -200,3 +200,15 @@ def test_consulta_por_alteracao_com_numero_traz_as_vendas_do_numero(
 def test_situacao_unica_vai_a_agi_em_maiusculas(cliente_http: TestClient, agi: AgiFalsa) -> None:
     cliente_http.get("/api/v1/vendas", params={"reserva": "90000001", "situacao": "fechada"})
     assert json.loads(agi.reservas.calls.last.request.content)["Status"] == "FECHADA"
+
+
+def test_vendas_por_periodo_nao_mudam(cliente_http: TestClient, agi: AgiFalsa) -> None:
+    agi.vendas = [fabrica.venda(idreserva=1001, dtemissao="2026-11-10 10:00:00")]
+    r = cliente_http.get(
+        "/api/v1/vendas", params={"tipoData": "emissao", "de": "2026-11-01", "ate": "2026-11-17"}
+    ).json()
+    linha = r["vendas"][0]
+    assert "servico" not in linha
+    assert "centroCusto" not in linha
+    assert "estadoServico" not in linha
+    assert "dataCancelamento" not in linha

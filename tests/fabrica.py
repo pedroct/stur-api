@@ -66,6 +66,21 @@ def servico(**campos: Any) -> dict[str, Any]:
     return base
 
 
+def apartamento(**campos: Any) -> dict[str, Any]:
+    """Apartamento de hotel com 1 unidade e 1 diária, valores zerados."""
+    base: dict[str, Any] = {
+        "idTipoApto": 1,
+        "qtde": 1,
+        "qtdeDiarias": 1,
+        "tipoApartamento": "TIPO EXEMPLO",
+        "vlrBalcao": ZERO,
+        "vlrDiaria": ZERO,
+        "vlrDiariaP": ZERO,
+    }
+    base.update(campos)
+    return base
+
+
 def _local(sigla: str, cidade: str = "") -> dict[str, Any]:
     return {"sigla": sigla, "aeroporto": "", "cidade": cidade, "pais": "", "fusoHorario": ""}
 
